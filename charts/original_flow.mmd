@@ -1,0 +1,10 @@
+graph TD;
+    A(Highlight Widet) --> B(Cropper);
+    A --> C(Selector);
+    A --> D(View/Save);
+    B --> E[Create Highlight];
+    E --> F[/set_to_format/];
+    E --> G[/crop_video/];
+    G --> H[/crop_layer/];
+    C --> I[/get_interesting_frame_number/];
+    I --> J[/get_event_centers/]

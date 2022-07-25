@@ -1,0 +1,12 @@
+graph TD;
+    A(Extractor Widget) -- For every cool thing creates a --> B(Cropper Widget);
+    A --- pass --> I(Center position);
+    A --- pass --> J(Begin and end frame);
+    I --> B;
+    J --> B;
+    B -..-> C[Size slider];
+    B -..-> D[Histeresis slider];
+    B -..-> E[View Button];
+    B -..-> F[Save Button];
+    B -..-> G[Mark Switch];
+    B -..-> H[Layers scroll menu]
