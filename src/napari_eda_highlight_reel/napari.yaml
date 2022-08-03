@@ -2,24 +2,9 @@ name: napari-eda-highlight-reel
 display_name: Napari eda highlight reel
 contributions:
   commands:
-    - id: napari-eda-highlight-reel.write_multiple
-      python_name: napari_eda_highlight_reel._writer:write_multiple
-      title: Save multi-layer data with Napari eda highlight reel
-    - id: napari-eda-highlight-reel.write_single_image
-      python_name: napari_eda_highlight_reel._writer:write_single_image
-      title: Save image data with Napari eda highlight reel
-    - id: napari-eda-highlight-reel.make_sample_data
-      python_name: napari_eda_highlight_reel._sample_data:make_sample_data
-      title: Load sample data from Napari eda highlight reel
-    - id: napari-eda-highlight-reel.make_extractor_widget
+    - id: napari-eda-highlight-reel.Extractor_Widget
       python_name: napari_eda_highlight_reel._widget:Extractor_Widget
       title: Make Extractor Widget
-    - command: napari-eda-highlight-reel.write_multiple
-      layer_types: ['image*','labels*']
-      filename_extensions: []
-    - command: napari-eda-highlight-reel.write_single_image
-      layer_types: ['image']
-      filename_extensions: ['.npy']
   widgets:
     - command: napari-eda-highlight-reel.Extractor_Widget
       display_name: Extractor Widget
