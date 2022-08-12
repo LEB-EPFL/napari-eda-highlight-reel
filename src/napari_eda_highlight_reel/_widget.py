@@ -20,15 +20,29 @@ import dask.array
 from pathlib import Path
 import scipy.ndimage as ndi
 
+from ._writer import write_multiple_again
+
 import tifffile
 import xmltodict
+import dicttoxml
 
 import napari
+from napari.types import FullLayerData
+
+##################### Extractor Widget ####################
 
 class Extractor_Widget(QWidget):
+    """This doct widget is an extractor in which, given the layer having the EDA information and the event score threshold, creates the events
+
+    Parameters
+    ----------
+
+    napari_viewer : napari.Viewer
+        the viewer that the extractor will extract the important events from
+    """
     def __init__(self, napari_viewer, nbh_size = 10):
         super().__init__()
-        self._viewer = napari_viewer
+        self._viewer: napari.Viewer = napari_viewer
         self.setLayout(QVBoxLayout())
         self.nbh_size = nbh_size
         self.time_data = None
@@ -39,6 +53,8 @@ class Extractor_Widget(QWidget):
         self.max_ev_score = None
         self.threshold = 0
 
+        self.create_EDA_layer_selector()
+
         self.create_threshold_scroller()
 
         self.create_top_buttons()
@@ -47,6 +63,7 @@ class Extractor_Widget(QWidget):
 
         self.create_bottom_buttons()
         
+        self.layout().addLayout(self.choose_eda_line)
         self.layout().addLayout(self.thresh_grid)
         self.layout().addLayout(self.top_btn_layout)
         self.layout().addWidget(self.event_list)
@@ -57,7 +74,24 @@ class Extractor_Widget(QWidget):
         self.scan_btn.clicked.connect(self.full_scan)
         self.add_btn.clicked.connect(self.create_new_event)
 
+    def create_EDA_layer_selector(self):
+        """Creates the selector for the EDA layer"""
+        self.choose_eda_line = QHBoxLayout()
+        self.choose_eda_line.addWidget(QLabel('EDA image layer'))
+        self.eda_layer_chooser = QComboBox()
+        for lay in self._viewer.layers:
+            self.eda_layer_chooser.addItem(lay.name)
+        self.choose_eda_line.addWidget(self.eda_layer_chooser)
         
+
+    def update_eda_layer_from_chooser(self, text):
+        self.eda_layer = self._viewer.layers[text]
+        self.set_max_thresh()
+
+    def update_eda_layer_chooser(self):
+        self.eda_layer_chooser.clear()
+        for lay in self._viewer.layers:
+            self.eda_layer_chooser.addItem(lay.name)
 
     def create_threshold_scroller(self):
         self.thresh_grid = QGridLayout()
@@ -77,7 +111,7 @@ class Extractor_Widget(QWidget):
         self.top_btn_layout = QHBoxLayout()
         self.top_btn_layout.addWidget(self.scan_btn)
         self.top_btn_layout.addWidget(self.add_btn)
-        
+    
 
     def create_bottom_buttons(self):
         self.save_all_btn = QPushButton('Save all')
@@ -85,14 +119,19 @@ class Extractor_Widget(QWidget):
         self.bottom_btn_layout = QHBoxLayout()
         self.bottom_btn_layout.addWidget(self.save_all_btn)
         self.bottom_btn_layout.addWidget(self.view_all_btn)
+        self.save_all_btn.clicked.connect(self.save_all_events)
+        self.view_all_btn.clicked.connect(self.view_all_events)
 
     def init_data(self):
+        """Initialize data from the layers"""
         if self.image_path != self._viewer.layers[0].source.path : #update data if new source is added
             self.image_path = self._viewer.layers[0].source.path
         #self.time_data=get_times(self)#init times of initial image
         connect_xml_metadata(self._viewer)
         connect_eda(self)
+        self.update_eda_layer_chooser()
         self.search_eda_layer()
+        self.eda_layer_chooser.currentTextChanged.connect(self.update_eda_layer_from_chooser)
         if self.eda_ready:
             self.set_max_thresh()
             self.update_threshhold()
@@ -111,13 +150,13 @@ class Extractor_Widget(QWidget):
             if lay.name == 'EDA':
                 self.eda_layer = lay
                 self.eda_ready = True
+                try:
+                    self.eda_layer_chooser.setCurrentText('EDA')
+                except:
+                    print('No layer named EDA in the selector')
         if not self.eda_ready:
             self.ask_eda_layer_name()
             
-
-    def ask_eda_layer_name(self):
-        dial = EDA_name_Dialog()
-        dial.exec()
 
     def create_new_event(self):
         evvy = EDA_Event('Event ' + str(self.event_list.count()), [0,0,0],1)
@@ -162,11 +201,36 @@ class Extractor_Widget(QWidget):
     def update_threshhold(self):
         self.threshold = self.thresh_scroller.value()*self.max_ev_score/100
         self.thresh_show.setText(str(self.threshold))
+    
+    def save_all_events(self):
+        for i in range(self.event_list.count()):
+            self.event_list.itemWidget(self.event_list.item(i)).save_reel()
 
+    def view_all_events(self):
+        for i in range(self.event_list.count()):
+            self.event_list.itemWidget(self.event_list.item(i)).view_reel()
 
+################### Auxiliary functions for the Extractor Widget ################
 
-def find_cool_thing_in_frame(frame, threshold, nbh_size):
-    data_max = ndi.filters.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
+def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list[dict[str:float]]:
+    """Function that takes a 3D frame and takes a list of the positions of the local maxima that are higher than the threshold
+    
+    Parameters
+    ----------
+    
+    frame : numpy.ndarray
+        The 3D image to be analyzed
+    threshold : float
+        Minimal value of the event score a maxima must have to be considered
+    nbh_size : int
+        Size of the neighbourhood around a local mximum wich it is considered that an other local maximum would be due to noise
+
+    Returns
+    -------
+
+    list of dictionaries having at the entries 'x', 'y' and 'z' the x, y nd z coordinate of every event center
+    """
+    data_max = ndi.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
     maxima = (frame == data_max)
     upper = (frame > threshold)
     maxima[upper == 0] = 0
@@ -181,9 +245,10 @@ def find_cool_thing_in_frame(frame, threshold, nbh_size):
         Events_centers.append(evvy)
     return Events_centers
 
-
+ ###################### EDA Event Structure ########################
 
 class EDA_Event():
+    """ Sctucture that represents an interesting event in a 3D video"""
     def __init__(self,name, center_position, first_frame):
         self.name = name
         self.c_x = center_position[0]
@@ -192,53 +257,28 @@ class EDA_Event():
         self.first_frame = first_frame-1
         self.last_frame = first_frame
 
-class EDA_name_Dialog(QDialog):
-    def __init__(self,widget: Extractor_Widget):
-        super().__init__()
-        self._widget = widget
-        self.setLayout(QGridLayout)
-        self.label = QLabel("Enter EDA Image layer's name")
-        self.inser = QLineEdit()
-        self.canc_button = QPushButton('Cancel')
-        self.sel_button = QPushButton('Select name')
-        self.layout().addWidget(self.label,0,0)
-        self.layout().addWidget(self.inser,0,1)
-        self.layout().addWidget(self.canc_button,1,0)
-        self.layout().addWidget(self.sel_button,1,1)
 
-        self.canc_button.clicked.connect(self.cancel_name_selection)
-        self.sel_button.clicked.connect(self.select_name)
-
-    def cancel_name_selection(self):
-        self._widget.eda_ready = False
-        self._widget.eda_layer = 'None'
-        self.reject()
-
-    def select_name(self):
-        chosen_name = self.inser.text()
-        for lay in self._widget._viewer.layers:
-            if lay.name == chosen_name:
-                self._widget.eda_ready = True
-                self._widget.eda_layer = lay
-                self.accept()
-        if self._widget.eda_ready ==False:
-            errmess = QErrorMessage()
-            errmess.showMessage('Please select the name of one of the available layers')
-
+######################## Cropper Widget #########################
 
 
 class Cropper_Widget(QWidget):
-    # your QWidget.__init__ can optionally request the napari viewer instance
-    # in one of two ways:
-    # 1. use a parameter called `napari_viewer`, as done here
-    # 2. use a type annotation of 'napari.viewer.Viewer' for any parameter
+    """Widget that make it possible to crop and then view separately or save an event
+    
+    Parameters
+    ----------
+
+    extractor : Ectractor_Widget
+        the extractor that created the cropper
+    event : EDA_Event
+        the event at which the cropper is associated
+    """
     def __init__(self, extractor: Extractor_Widget, event: EDA_Event):
         super().__init__()
         self._extractor: Extractor_Widget = extractor
         self._event = event
         self.time_data = None
         self.event_scores = None
-        self.layers_to_crop_indexes = self.get_image_layers_indexes()
+        self.layers_to_crop_names = self.get_image_layers_names()
 
         self.max_crop_sizes = {'x': self._extractor.eda_layer.data.shape[3], 'y': self._extractor.eda_layer.data.shape[2], 'z': self._extractor.eda_layer.data.shape[1]}
         self.crop_sizes = {'x': min(100,self.max_crop_sizes['x']), 'y': min(100,self.max_crop_sizes['y']), 'z': min(100,self.max_crop_sizes['z'])}
@@ -279,19 +319,15 @@ class Cropper_Widget(QWidget):
 
     def update_layermenu(self):
         self.layermenu.clear()
-        i = 0
         for lay in self._extractor._viewer.layers:
-            self.layermenu.addAction(lay.name)
-            self.layermenu.actions()[-1].setCheckable(True)
-            if i in self.layers_to_crop_indexes:
-                self.layermenu.actions()[-1].setChecked()
-            i = i+1
+            newact = self.layermenu.addAction(lay.name)
+            newact.setCheckable(True)
 
     def update_croplist_from_layermenu(self):
-        self.layers_to_crop_indexes = []
-        for i in range(len(self.layermenu.actions())):
-            if self.layermenu.actions()[i].isChecked():
-                self.layers_to_crop_indexes.append(i)
+        self.layers_to_crop_names = []
+        for act in self.layermenu.actions():
+            if act.isChecked():
+                self.layers_to_crop_names.append(act.text())
 
     def create_top_lane(self):
         self.top_lane = QHBoxLayout()
@@ -304,9 +340,10 @@ class Cropper_Widget(QWidget):
         self.layerbutton.setPopupMode(QToolButton.InstantPopup)
         self.update_layermenu()
 
-        for i in range(len(self._extractor._viewer.layers)):
-            if i in self.layers_to_crop_indexes:
-                    self.layermenu.actions()[i].setChecked(True)
+        for act in self.layermenu.actions():
+            act.setCheckable(True)
+            if act.text() in self.layers_to_crop_names:
+                    act.setChecked(True)
         self.layermenu.triggered.connect(self.update_croplist_from_layermenu)
 
         #self._extractor._viewer.events.inserted.connect(self.update_layermenu)
@@ -324,18 +361,11 @@ class Cropper_Widget(QWidget):
         self._event.name = self.nameLabel.text()
         self.nameLabel.setText = self._event.name
 
-    def get_layers_data(self, layer_numbers):
-        benedict = {}
-        for i in layer_numbers:
-            datas = layer_modes(self._extractor._viewer.layers[i])
-            benedict[datas['name']] = datas
-        return benedict
-
-    def get_image_layers_indexes(self):
+    def get_image_layers_names(self):
         lili = []
-        for i in range(len(self._extractor._viewer.layers)):
-            if type(self._extractor._viewer.layers[i]) == napari.layers.image.image.Image:
-                lili.append(i)
+        for lay in self._extractor._viewer.layers:
+            if type(lay) == napari.layers.image.image.Image:
+                lili.append(lay.name)
         return lili
 
     def create_val_grid(self):
@@ -399,50 +429,57 @@ class Cropper_Widget(QWidget):
         self.grid_editables['Frame']['First'].setText(str(self._event.first_frame))
         self.grid_editables['Frame']['Last'].setText(str(self._event.last_frame))
 
-        
 
 
-
-    def full_crop(self,layer_numbers, sizes,hf_frame, hl_frame):
-        to_use = self.convert_to_easy_format(layer_numbers)
-        return centered_crop(to_use, self.center_position,sizes,hf_frame,hl_frame)
-
-    def convert_to_easy_format(self, layer_numbers):
+    def convert_to_easy_format(self, layer_names):
         """
         takes the layers images and convert them to a dictionary of 4-dimensional numpy arrays
         """
         ready_video = dict()
-        for i in layer_numbers:
-            video = np.asarray(self._extractor._viewer.layers[i].data)
+        for name in layer_names:
+            video = np.asarray(self._extractor._viewer.layers[name].data)
             if video.ndim == 3:
                 video = np.expand_dims(video, axis = 1)
-            ready_video[self._extractor._viewer.layers[i].name] = video
+            ready_video[name] = video
         return ready_video
 
+    def full_crop(self) -> list[FullLayerData]:
+        finalist = []
+        new_meta = self.pass_metadata()
+        vids = self.convert_to_easy_format(self.layers_to_crop_names)
+        for key in vids.keys():
+            new_data = layer_crop(vids[key],self.get_corrected_limits())
+            old_tuple = self._extractor._viewer.layers[key].as_layer_data_tuple()
+            old_tuple[1]['metadata'] = new_meta[key]
+            to_append = new_data, old_tuple[1], old_tuple[2]
+            finalist.append(to_append)
+        return finalist
+
+        
+
     def save_reel(self):
-        return 0
+        data = self.full_crop()
+        path = str(Path(self._extractor.image_path).parent / 'Reels' / self._event.name)
+        write_multiple_again(path, data)
+        print(self._event.name + 'has been saved')
 
     def view_reel(self):
-        all_layers = range(len(self._extractor._viewer.layers))
-        new_lay = {}
-        vids = self.convert_to_easy_format(all_layers)
-        for key in vids.keys():
-            new_lay[key] = layer_crop(vids[key],self.get_corrected_limits())
+        new_lay = self.full_crop()
         new_view = napari.Viewer()
-        dats = self.get_layers_data(all_layers)
-        for i in range(len(new_lay.keys())):
-            new_view.add_image(new_lay[list(new_lay.keys())[i]])
-            mods_to_layer(new_view.layers[i],dats[list(new_lay.keys())[i]])
-            if len(self._extractor._viewer.layers[i].metadata.keys()) > 0:
-                new_view.layers[i].metadata = self.crop_ome_metadata(self._extractor._viewer.layers[i].metadata)
+        for i in range(len(new_lay)):
+            new_view.add_image(new_lay[i][0],**new_lay[i][1])
 
     def pass_metadata(self):
         """
         Modify the met['OME']['Image']['Pixels']['TiffData'] and met['OME']['Image']['Pixels']['Planes'] taking only the frames
         in the reel, modify sizes names and positions"""
         new_meta = {}
-        for lay in self._extractor._viewer.layers[self.layers_to_crop_indexes]:
-            new_meta[lay.name] = self.crop_ome_metadata(lay.metadata)
+        for name in self.layers_to_crop_names:
+            if self._extractor._viewer.layers[name].metadata.__contains__('OME'):
+                new_meta[name] = self.crop_ome_metadata(self._extractor._viewer.layers[name].metadata)
+            elif self._extractor._viewer.layers[name].metadata.__contains__('EDA'):
+                if self._extractor._viewer.layers[name].metadata['EDA']:
+                    new_meta[name] = {'EDA': True}
         return new_meta
 
     def crop_ome_metadata(self, ome_metadata: dict):
@@ -474,22 +511,8 @@ class Cropper_Widget(QWidget):
         return correct_limits(limits, np.asarray(self._extractor.eda_layer.data))
 
     
+############################ Auxiliary functions for Cropper Widget ##########################
 
-
-def centered_crop(videos: dict, Center_pos, Sizes, frame_begin, frame_end): #bref, center pos et Sizes seront donnes dans l'ordre z y x
-    """
-    Crop the layer with given center point and desired size of the cropped region
-    """
-    limits = []
-    limits.append([frame_begin,frame_end])
-    for i in range(len(Center_pos)):
-        frst = Center_pos[i] - int(0.5*Sizes[i])
-        lst = Center_pos[i] + int(0.5*Sizes[i])
-        limits.append([frst,lst])
-    new_lay = dict()
-    for key in videos.keys():
-        new_lay[key] = layer_crop(videos[key],limits)
-    return new_lay
 
 def layer_crop(image: np.array, limits: list):
     """
@@ -519,6 +542,8 @@ def correct_limits(limits: list, image: np.array) -> list:
             limcheck[i][1] = int(limits[i][1])
     return limcheck
 
+######################## Other Auxiliary Functions #####################
+
 def connect_eda(widget):
     """
     Connect the associated EDA images in a new layer
@@ -527,65 +552,7 @@ def connect_eda(widget):
     widget._viewer.open(edapath, plugin = "napari-ome-zarr")
     widget._viewer.layers[-1].blending = 'additive'
     widget._viewer.layers[-1].name = 'EDA'
-
-def get_dict_from_ome_metadata(usepath: Path):
-   if usepath.suffix == '.tif':
-         with tifffile.TiffFile(usepath) as tif:
-            XML_metadata= tif.ome_metadata #returns a reference to a function that accesses the metadata as a OME XML file
-   else:
-      metapath = str(usepath.parent / 'OME' / 'METADATA.ome.xml')
-      XML_metadata = open(metapath,'r').read()
-   dict_metadata=xmltodict.parse(XML_metadata) #converts the xml to a dictionary to be readable
-   return dict_metadata
-
-def get_times_from_dict(dict_metadata: dict, channel = 0):
-   times=[]
-   num_pages = len(dict_metadata['OME']['Image']['Pixels']['Plane'])
-   for frame in range(0,num_pages):
-      #time should be in either s or ms
-      if float(dict_metadata['OME']['Image']['Pixels']['Plane'][frame]['@TheC'])==channel: #checks if correct channel
-         frame_time_unit=dict_metadata['OME']['Image']['Pixels']['Plane'][frame]['@DeltaTUnit']
-         if frame_time_unit== 's' :
-            convert_unit_to_ms=1000
-            times.append(convert_unit_to_ms*float(dict_metadata['OME']['Image']['Pixels']['Plane'][frame]['@DeltaT']))
-         elif frame_time_unit == 'ms':
-            convert_unit_to_ms=1
-            times.append(convert_unit_to_ms*float(dict_metadata['OME']['Image']['Pixels']['Plane'][frame]['@DeltaT']))
-         else:
-            print('Time units not in ms or s but in '+ frame_time_unit+'. A conversion to ms or s must be done.')
-   times = [x - times[0] for x in times] #remove any offset from time
-   return times
-
-def get_times(widget):
-   """Method that gets the capture time from the metadata.
-   
-   Input:-
-   Output: Vector of time metadata [ms] of images found at given image path and channel.
-
-   The times of each image stack from a ome.tif file is read in [ms] or [s] and then returned in [ms]. 
-   The times are taken from a given channel. The data can only be read from an ome.tif file. The Offset 
-   from time t=0 subrtracted to the times before it is returned.
-   The following code is inspired from the solution for reading tiff files metadata from Willi Stepp.
-   """
-
-   dict_metadata=get_dict_from_ome_metadata(Path(widget.image_path)) #converts the xml to a dictionary to be readable
-   times = get_times_from_dict(dict_metadata, channel=widget.channel) #remove any offset from time
-   return times
-
-def layer_modes(layer) -> dict:
-    """
-    save the proerties of a layer in a dictionary
-        self.setMinimumHeight(200)
-    """
-    datas = {}
-    datas['name'] = layer.name
-    datas['opacity'] = layer.opacity
-    datas['contrast_limits'] = layer.contrast_limits
-    datas['gamma'] = layer.gamma
-    datas['colormap'] = layer.colormap
-    datas['blending'] = layer.blending
-    datas['interpolation'] = layer.interpolation
-    return datas
+    widget._viewer.layers[-1].metadata['EDA'] = True
 
 def connect_xml_metadata(viewer: napari.Viewer):
     for lay in viewer.layers:
@@ -594,18 +561,3 @@ def connect_xml_metadata(viewer: napari.Viewer):
             metapath = impath.parent / 'OME' / 'METADATA.ome.xml'
             XML_metadata = open(metapath,'r').read()
             lay.metadata = xmltodict.parse(XML_metadata)
-            
-
-
-def mods_to_layer(layer: napari.layers.image.image.Image, mods: dict):
-    """
-    gives the properties defined in mods to the layer
-    """
-    layer.name = mods['name']
-    layer.opacity = mods['opacity']
-    layer.contrast_limits = mods['contrast_limits']
-    layer.gamma = mods['gamma']
-    layer.colormap = mods['colormap']
-    layer.blending = mods['blending']
-    layer.interpolation = mods['interpolation']
-
