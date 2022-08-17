@@ -16,6 +16,7 @@ import numpy as np
 from ome_zarr import io
 from ome_zarr import writer
 import zarr
+import ome_types
 
 from typing import TYPE_CHECKING, Any, List, Sequence, Tuple, Union
 from pathlib import Path
@@ -35,30 +36,6 @@ def write_single_image(path: str, data: Any, meta: dict):
 
 def write_multiple(path: str, data: List[FullLayerData]):
     """Writes multiple layers of different types."""
-    eda_layer = None
-    omedata = []
-    for i in range(len(data)):
-        if data[i][1]['metadata'].__contains__('EDA') and data[i][1]['EDA']:
-            eda_layer = data[i]
-        if data[i][1]['metadata'].__contains__('OME'):
-            omedata.append(data[i][1]['metadata'])
-    eda_path = path + '/EDA'
-    img_path = path + '/Images'
-    ome_path = path + '/OME/METADATA.ome.xml'
-    if eda_layer is not None:
-        write_ngff_image(eda_path, eda_layer[0], axes = "tzyx")
-    if len(omedata) > 0:
-        to_write = merge_layers_ngff(omedata)
-        write_ngff_image(img_path, to_write)
-        xmlstr = dict2xml.dict2xml(omedata)
-        flot = open(ome_path,'w')
-        flot.write(xmlstr)
-        flot.close
-    return [eda_path, img_path, ome_path]
-    #write_ngff_image(path, merge_layers_ngff(data))
-
-#def write_full_eda_format(path: str, data: List[FullLayerData]):
-def write_multiple_again(path: str, data: List[FullLayerData]):
     if os.path.isdir(path):
         shutil.rmtree(path)
     omedata = []
@@ -80,11 +57,12 @@ def write_multiple_again(path: str, data: List[FullLayerData]):
     if len(omedata) > 0:
         to_write = merge_layers_ngff(omedata)
         write_ngff_image(img_path, to_write)
-        xmlstr = dict2xml.dict2xml(omedata[0][1]['metadata'])
+        xmlstr = ome_types.to_xml(omedata[0][1]['metadata']['OME'])
         flot = open(ome_path,'w')
         flot.write(xmlstr)
         flot.close
     return [eda_path, img_path, ome_path]
+    #write_ngff_image(path, merge_layers_ngff(data))
 
     
 

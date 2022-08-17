@@ -16,4 +16,4 @@ contributions:
       layer_types:
       - image*
       filename_extensions:
-      - .eda
+      - .zarr
