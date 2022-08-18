@@ -3,7 +3,7 @@
         2,
         2,
         1,
-        79,
+        90,
         100
     ],
     "compressor": {
@@ -19,10 +19,10 @@
     "filters": null,
     "order": "C",
     "shape": [
-        2,
+        3,
         2,
         1,
-        79,
+        90,
         100
     ],
     "zarr_format": 2

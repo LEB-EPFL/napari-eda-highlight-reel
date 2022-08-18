@@ -20,6 +20,7 @@ import dask.array
 
 from pathlib import Path
 import scipy.ndimage as ndi
+from copy import deepcopy
 
 from ._writer import write_multiple
 
@@ -95,7 +96,7 @@ class Extractor_Widget(QWidget):
     def create_EDA_layer_selector(self):
         """Creates the selector for the EDA layer"""
         self.choose_eda_line = QHBoxLayout()
-        self.choose_eda_line.addWidget(QLabel('NN image layer'))
+        self.choose_eda_line.addWidget(QLabel('NN Image layer'))
         self.eda_layer_chooser = QComboBox()
         for lay in self._viewer.layers:
             self.eda_layer_chooser.addItem(lay.name)
@@ -177,13 +178,13 @@ class Extractor_Widget(QWidget):
             connect_xml_metadata(self._viewer)
         except:
             print("xml_metadata not availables")
-        try:
-            if not self.eda_ready:
-                connect_nn_images(self)
-            self.update_eda_layer_chooser()
-            self.search_eda_layer()
-        except:
-            print("Neural_network images not availables")
+        #try:
+        if not self.eda_ready:
+            connect_nn_images(self)
+        self.update_eda_layer_chooser()
+        self.search_eda_layer()
+        #except:
+        #    print("Neural_network images not availables")
         self.eda_layer_chooser.currentTextChanged.connect(self.update_eda_layer_from_chooser)
         if self.eda_ready:
             self.set_max_thresh()
@@ -222,8 +223,8 @@ class Extractor_Widget(QWidget):
             
     # Slots related to buttons
 
-    def create_new_event(self, center_position = [0,0,0], firstframe = 1):
-        evvy = EDA_Event('Event ' + str(self.event_list.count()), center_position=center_position ,first_frame=firstframe , ID=self.event_list.count()+1)
+    def create_new_event(self):
+        evvy = EDA_Event('Event ' + str(self.event_list.count()), center_position=[0,0,0] ,first_frame=1 , ID=self.event_list.count()+1)
         new_crp = Cropper_Widget(self,evvy)
         item = QListWidgetItem()
         item.setSizeHint(new_crp.sizeHint())
@@ -589,13 +590,13 @@ class Cropper_Widget(QWidget):
         for name in self.layers_to_crop_names:
             if self._extractor._viewer.layers[name].metadata.__contains__('OME'):
                 new_meta[name] = {'OME': self.crop_ome_metadata(self._extractor._viewer.layers[name].metadata['OME']), 'LEB EDA' : self.generate_event_metadata()}
-            elif self._extractor._viewer.layers[name].metadata.__contains__('NN image'):
-                if self._extractor._viewer.layers[name].metadata['EDA']:
-                    new_meta[name] = {'EDA': True}
+            elif self._extractor._viewer.layers[name].metadata.__contains__('NN Image'):
+                if self._extractor._viewer.layers[name].metadata['NN Image']:
+                    new_meta[name] = {'NN Image': True}
         return new_meta
 
     def crop_ome_metadata(self, ome_metadata: ome_types.model.ome.OME) -> ome_types.model.ome.OME:
-        cropped = ome_metadata
+        cropped = deepcopy(ome_metadata)
         limits = self.get_corrected_limits()
         sizes = []
         for i in range(len(limits)):
@@ -700,6 +701,7 @@ def connect_nn_images(widget):
     """
     edapath = str(Path(widget.image_path).parent / 'EDA')
     widget._viewer.open(edapath, plugin = "napari-ome-zarr")
+    widget._viewer.layers[-1].data = np.asarray(widget._viewer.layers[-1].data)[0:widget._viewer.layers[0].data.shape[0]]
     widget._viewer.layers[-1].blending = 'additive'
     widget._viewer.layers[-1].name = 'NN Image'
     widget._viewer.layers[-1].metadata['NN Image'] = True

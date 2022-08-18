@@ -1,0 +1,35 @@
+<OME xmlns="http://www.openmicroscopy.org/Schemas/OME/2016-06" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openmicroscopy.org/Schemas/OME/2016-06 http://www.openmicroscopy.org/Schemas/OME/2016-06/ome.xsd">
+    <Instrument ID="Instrument:0" />
+    <Image ID="Image:0" Name="steven_192_MMStack_Injection">
+        <InstrumentRef ID="Instrument:0" />
+        <StageLabel Name="Injection" X="0.0" XUnit="µm" Y="0.0" YUnit="µm" />
+        <Pixels DimensionOrder="XYZCT" ID="Pixels:0" SizeC="2" SizeT="3" SizeX="100" SizeY="90" SizeZ="1" Type="uint16" BigEndian="false">
+            <Channel ID="Channel:0:0" Color="-1" Name="Cy5" SamplesPerPixel="1" />
+            <Channel ID="Channel:0:1" Color="-1" Name="DAPI" SamplesPerPixel="1" />
+            <TiffData FirstT="1" IFD="2" PlaneCount="1">
+                <UUID FileName="steven_192_MMStack_Injection.ome.tif">urn:uuid:85b8915b-49b0-4538-b3d5-d6b338f68599</UUID>
+            </TiffData>
+            <TiffData FirstC="1" FirstT="1" IFD="3" PlaneCount="1">
+                <UUID FileName="steven_192_MMStack_Injection.ome.tif">urn:uuid:85b8915b-49b0-4538-b3d5-d6b338f68599</UUID>
+            </TiffData>
+            <TiffData FirstT="2" IFD="4" PlaneCount="1">
+                <UUID FileName="steven_192_MMStack_Injection.ome.tif">urn:uuid:85b8915b-49b0-4538-b3d5-d6b338f68599</UUID>
+            </TiffData>
+            <TiffData FirstC="1" FirstT="2" IFD="5" PlaneCount="1">
+                <UUID FileName="steven_192_MMStack_Injection.ome.tif">urn:uuid:85b8915b-49b0-4538-b3d5-d6b338f68599</UUID>
+            </TiffData>
+            <TiffData FirstT="3" IFD="6" PlaneCount="1">
+                <UUID FileName="steven_192_MMStack_Injection.ome.tif">urn:uuid:85b8915b-49b0-4538-b3d5-d6b338f68599</UUID>
+            </TiffData>
+            <TiffData FirstC="1" FirstT="3" IFD="7" PlaneCount="1">
+                <UUID FileName="steven_192_MMStack_Injection.ome.tif">urn:uuid:85b8915b-49b0-4538-b3d5-d6b338f68599</UUID>
+            </TiffData>
+            <Plane TheC="0" TheT="1" TheZ="0" DeltaT="10269.0" DeltaTUnit="ms" ExposureTime="1.0" ExposureTimeUnit="ms" PositionX="0.0" PositionXUnit="µm" PositionY="0.0" PositionYUnit="µm" PositionZ="0.0" PositionZUnit="µm" />
+            <Plane TheC="1" TheT="1" TheZ="0" DeltaT="10493.0" DeltaTUnit="ms" ExposureTime="1.0" ExposureTimeUnit="ms" PositionX="0.0" PositionXUnit="µm" PositionY="0.0" PositionYUnit="µm" PositionZ="0.0" PositionZUnit="µm" />
+            <Plane TheC="0" TheT="2" TheZ="0" DeltaT="15253.0" DeltaTUnit="ms" ExposureTime="1.0" ExposureTimeUnit="ms" PositionX="0.0" PositionXUnit="µm" PositionY="0.0" PositionYUnit="µm" PositionZ="0.0" PositionZUnit="µm" />
+            <Plane TheC="1" TheT="2" TheZ="0" DeltaT="15475.0" DeltaTUnit="ms" ExposureTime="1.0" ExposureTimeUnit="ms" PositionX="0.0" PositionXUnit="µm" PositionY="0.0" PositionYUnit="µm" PositionZ="0.0" PositionZUnit="µm" />
+            <Plane TheC="0" TheT="3" TheZ="0" DeltaT="20274.0" DeltaTUnit="ms" ExposureTime="1.0" ExposureTimeUnit="ms" PositionX="0.0" PositionXUnit="µm" PositionY="0.0" PositionYUnit="µm" PositionZ="0.0" PositionZUnit="µm" />
+            <Plane TheC="1" TheT="3" TheZ="0" DeltaT="20484.0" DeltaTUnit="ms" ExposureTime="1.0" ExposureTimeUnit="ms" PositionX="0.0" PositionXUnit="µm" PositionY="0.0" PositionYUnit="µm" PositionZ="0.0" PositionZUnit="µm" />
+        </Pixels>
+    </Image>
+</OME>
