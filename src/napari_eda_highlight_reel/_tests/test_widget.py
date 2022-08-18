@@ -30,13 +30,13 @@ def extractor_empty(make_napari_viewer):
 @pytest.fixture
 def extractor_after_load(make_napari_viewer):  #creates Extractor_Widget for the viewer loads data then return the widget
     viewer: napari.Viewer = make_napari_viewer(show=False)
-    viewer.open(test_image_path)
+    viewer.open(test_image_path, plugin='napari-ome-zarr')
     yield Extractor_Widget(viewer)
 
 @pytest.fixture
 def cropper_first_event_image(make_napari_viewer):
     viewer: napari.Viewer = make_napari_viewer(show=False)
-    viewer.open(test_image_path)
+    viewer.open(test_image_path, plugin='napari-ome-zarr')
     extractor = Extractor_Widget(viewer)
     extractor.thresh_scroller.setValue(80)
     extractor.full_scan()
@@ -86,6 +86,8 @@ def test_update_layer_label(extractor_after_load: Extractor_Widget):
     extractor_after_load.event_list.clear()
     extractor_after_load.update_event_labels()
     assert extractor_after_load._viewer.layers['Event Labels'].data[5,0,128,128] == 0
+
+
     
 
 
