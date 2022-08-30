@@ -6,29 +6,27 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 
 Replace code below according to your needs.
 """
-from pickletools import int4
-from signal import signal
+
 from typing import TYPE_CHECKING
 
-from magicgui import magic_factory
 import numpy as np
-from pandas import array
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QDialog, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QDialog, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton, QCheckBox
 from qtpy.QtCore import Qt, QTimer
-from qtpy import QtGui
-import dask.array
 
 from pathlib import Path
 import scipy.ndimage as ndi
 from copy import deepcopy
 
 from ._writer import write_multiple
+from . import NNfeeder, ImageTiles
 
 import tifffile
 import xmltodict
 import os
-import ome_types
 import json
+from tqdm import tqdm
+from skimage import transform
+from tensorflow import keras
 
 import napari
 from napari.types import FullLayerData
@@ -54,7 +52,7 @@ class Extractor_Widget(QWidget):
 
         self.eda_layer = None
         self.eda_ready = False
-        self.max_ev_score = None
+        self.max_ev_score = 0
         self.threshold = 0
 
         self.create_EDA_layer_selector()
@@ -90,6 +88,9 @@ class Extractor_Widget(QWidget):
         self.scan_btn.clicked.connect(self.full_scan)
         self.add_btn.clicked.connect(self.create_new_event)
         self._viewer.layers.events.removed.connect(self.eliminate_widget_if_empty)
+
+        self._viewer.layers.events.inserted.connect(self.update_eda_layer_chooser)
+        self._viewer.layers.events.removed.connect(self.update_eda_layer_chooser)
 
     # Functions for the GUI creation
 
@@ -155,6 +156,7 @@ class Extractor_Widget(QWidget):
         if text != '':
             self.eda_layer = self._viewer.layers[text]
             self.set_max_thresh()
+            self.thresh_scroller.setValue(80)
             self.eda_ready = True
 
     def update_eda_layer_chooser(self):
@@ -162,7 +164,7 @@ class Extractor_Widget(QWidget):
         for lay in self._viewer.layers:
             self.eda_layer_chooser.addItem(lay.name)
 
-    def update_threshhold(self):
+    def update_threshold(self):
         self.threshold = self.thresh_scroller.value()*self.max_ev_score/100
         self.thresh_show.setText(str(self.threshold))
 
@@ -178,19 +180,20 @@ class Extractor_Widget(QWidget):
             connect_xml_metadata(self._viewer)
         except:
             print("xml_metadata not availables")
-        #try:
-        if not self.eda_ready:
-            connect_nn_images(self)
-        self.update_eda_layer_chooser()
-        self.search_eda_layer()
-        #except:
-        #    print("Neural_network images not availables")
+        try:
+            if not self.eda_ready:
+                connect_nn_images(self)
+            self.update_eda_layer_chooser()
+            self.search_eda_layer()
+        except:
+            print("Neural_network images not availables")
         self.eda_layer_chooser.currentTextChanged.connect(self.update_eda_layer_from_chooser)
+        self.thresh_scroller.valueChanged.connect(self.update_threshold)
+        self.thresh_scroller.setValue(80)
         if self.eda_ready:
             self.set_max_thresh()
-            self.update_threshhold()
-            self.thresh_scroller.valueChanged.connect(self.update_threshhold)
-            self.thresh_scroller.setValue(80)
+            self.update_threshold()
+            
         #except:
 
     def eliminate_widget_if_empty(self,event):
@@ -204,9 +207,6 @@ class Extractor_Widget(QWidget):
     #Auxiliaries for init_data
 
     def set_max_thresh(self):
-        if type(self.eda_layer.data) == dask.array.core.Array:
-            self.max_ev_score = np.amax(self.eda_layer.data.compute())
-        else:
             self.max_ev_score = np.amax(np.asarray(self.eda_layer.data))
         
 
@@ -283,9 +283,13 @@ class Extractor_Widget(QWidget):
     def update_event_labels(self):
         
         data = np.zeros(self.eda_layer.data.shape, dtype = np.int8)
+        dims = len(data.shape)
         for i in range(self.event_list.count()):
             lims = self.event_list.itemWidget(self.event_list.item(i)).get_corrected_limits()
-            data[lims[0][0]:lims[0][1],lims[1][0]:lims[1][1],lims[2][0]:lims[2][1],lims[3][0]:lims[3][1]] = i+1
+            if dims == 4:
+                data[lims[0][0]:lims[0][1],lims[1][0]:lims[1][1],lims[2][0]:lims[2][1],lims[3][0]:lims[3][1]] = i+1
+            else:
+                data[lims[0][0]:lims[0][1],lims[2][0]:lims[2][1],lims[3][0]:lims[3][1]] = i+1
         if self._viewer.layers.__contains__('Event Labels'):
             self._viewer.layers['Event Labels'].data = data
         else:
@@ -297,7 +301,7 @@ class Extractor_Widget(QWidget):
 
 ################### Auxiliary functions for the Extractor Widget ################
 
-def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list[dict[str:float]]:
+def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list:
     """Function that takes a 3D frame and takes a list of the positions of the local maxima that are higher than the threshold
     
     Parameters
@@ -315,6 +319,8 @@ def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list[dic
 
     list of dictionaries having at the entries 'x', 'y' and 'z' the x, y nd z coordinate of every event center
     """
+    if len(frame.shape) == 2:                         #To treat 2D images as 3D
+        frame = np.expand_dims(frame, axis = 0)
     data_max = ndi.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
     maxima = (frame == data_max)
     upper = (frame > threshold)
@@ -322,6 +328,7 @@ def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list[dic
     labeled, num_objects = ndi.label(maxima)
     slices = ndi.find_objects(labeled)
     Events_centers = []
+    
     for dz,dy,dx in slices:
         evvy = {'x': 0, 'y': 0, 'z': 0}
         evvy['x'] = (dx.start + dx.stop - 1)/2
@@ -364,7 +371,7 @@ class Cropper_Widget(QWidget):
         self.event_scores = None
         self.layers_to_crop_names = self.get_image_layers_names()
 
-        self.max_crop_sizes = {'x': self._extractor.eda_layer.data.shape[3], 'y': self._extractor.eda_layer.data.shape[2], 'z': self._extractor.eda_layer.data.shape[1]}
+        self.max_crop_sizes = {'x': self._extractor.eda_layer.data.shape[-1], 'y': self._extractor.eda_layer.data.shape[-2], 'z': self._extractor.eda_layer.data.shape[1] if len(self._extractor.eda_layer.data.shape) == 0 else 1}
         self.crop_sizes = {'x': min(100,self.max_crop_sizes['x']), 'y': min(100,self.max_crop_sizes['y']), 'z': min(100,self.max_crop_sizes['z'])}
 
         self.create_top_lane()
@@ -556,14 +563,17 @@ class Cropper_Widget(QWidget):
 
     # Main function to crop around the interesting events
 
-    def full_crop(self) -> list[FullLayerData]:
+    def full_crop(self) -> list:
         finalist = []
         new_meta = self.pass_metadata()
         vids = self.convert_to_easy_format(self.layers_to_crop_names)
         for key in vids.keys():
             new_data = layer_crop(vids[key],self.get_corrected_limits())
             old_tuple = self._extractor._viewer.layers[key].as_layer_data_tuple()
-            old_tuple[1]['metadata'] = new_meta[key]
+            try:
+                old_tuple[1]['metadata'] = new_meta[key]
+            except:
+                pass
             to_append = new_data, old_tuple[1], old_tuple[2]
             finalist.append(to_append)
         return finalist
@@ -590,23 +600,23 @@ class Cropper_Widget(QWidget):
         for name in self.layers_to_crop_names:
             if self._extractor._viewer.layers[name].metadata.__contains__('OME'):
                 new_meta[name] = {'OME': self.crop_ome_metadata(self._extractor._viewer.layers[name].metadata['OME']), 'LEB EDA' : self.generate_event_metadata()}
-            elif self._extractor._viewer.layers[name].metadata.__contains__('NN Image'):
+            if self._extractor._viewer.layers[name].metadata.__contains__('NN Image'):
                 if self._extractor._viewer.layers[name].metadata['NN Image']:
                     new_meta[name] = {'NN Image': True}
         return new_meta
 
-    def crop_ome_metadata(self, ome_metadata: ome_types.model.ome.OME) -> ome_types.model.ome.OME:
+    def crop_ome_metadata(self, ome_metadata: dict) -> dict:
         cropped = deepcopy(ome_metadata)
         limits = self.get_corrected_limits()
         sizes = []
         for i in range(len(limits)):
             sizes.append(str(limits[i][1]-limits[i][0]))
-        cropped.images[0].pixels.size_t = sizes[0]
-        cropped.images[0].pixels.size_z = sizes[1]
-        cropped.images[0].pixels.size_y = sizes[2]
-        cropped.images[0].pixels.size_x = sizes[3]
-        cropped.images[0].pixels.tiff_data_blocks = [item for item in cropped.images[0].pixels.tiff_data_blocks if item.first_t in range(limits[0][0],limits[0][1])]
-        cropped.images[0].pixels.planes = [item for item in cropped.images[0].pixels.planes if item.the_t in range(limits[0][0],limits[0][1])]
+        cropped['OME']['Image']['Pixels']['@SizeT'] = sizes[0]
+        cropped['OME']['Image']['Pixels']['@SizeZ'] = sizes[1]
+        cropped['OME']['Image']['Pixels']['@SizeY'] = sizes[2]
+        cropped['OME']['Image']['Pixels']['@SizeX'] = sizes[3]
+        cropped['OME']['Image']['Pixels']['TiffData'] = [item for item in cropped['OME']['Image']['Pixels']['TiffData'] if item['@FirstT'] in range(limits[0][0],limits[0][1])]
+        cropped['OME']['Image']['Pixels']['Plane'] = [item for item in cropped['OME']['Image']['Pixels']['Plane'] if item['@TheT'] in range(limits[0][0],limits[0][1])]
         return cropped
 
     def get_corrected_limits(self):
@@ -681,7 +691,7 @@ def correct_limits(limits: list, image: np.array) -> list:
             limcheck[i][1] = int(limits[i][1])
     return limcheck
 
-def limits_to_c_s_f(limits:list[list[int]]) -> dict[str,dict[str,int]]:
+def limits_to_c_s_f(limits:list) -> dict:
     c_s_f = {'Center position': {'x': 0, 'y': 0, 'z': 0}, 'Size': {'x': 0, 'y': 0, 'z': 0},'Frame': {}}
     c_s_f['Frame'] = {'First': limits[0][0],'Last': limits[0][1]}
     c_s_f['Center position']['x'] = (limits[3][0] + limits[3][1])//2
@@ -711,7 +721,14 @@ def connect_xml_metadata(viewer: napari.Viewer):
         impath = Path(lay.source.path)
         if impath.suffix != 'tif':
             metapath = str(impath.parent / 'OME' / 'METADATA.ome.xml')
-            lay.metadata['OME'] = ome_types.from_xml(metapath, parser = 'lxml')
+            fl = open(metapath,'r')
+            lay.metadata['OME'] = xmltodict.parse(fl.read())
+            fl.close
+        else:
+            with tifffile.TiffFile(lay.source.path, fastij=False) as tif:
+                md = tif.ome_metadata.encode(encoding='UTF-8', errors='strict')
+            # extract only the planes that was written to
+                lay.metadata = xmltodict.parse(md)
 
 def connect_json_metadata(viewer: napari.Viewer):
     for lay in viewer.layers:
@@ -732,3 +749,189 @@ EDA Parameters
 Sampling Parameters
 
 """
+
+
+
+
+########## GENERATOR #############
+
+class Generator_Widget(QWidget):
+    # your QWidget.__init__ can optionally request the napari viewer instance
+    # in one of two ways:
+    # 1. use a parameter called `napari_viewer`, as done here
+    # 2. use a type annotation of 'napari.viewer.Viewer' for any parameter
+    def __init__(self, napari_viewer):
+        super().__init__()
+        self._viewer: napari.Viewer = napari_viewer
+        self.model_address: str = '/home/elio/Desktop/LEB_Internship/napari-eda-highreel-1/models/model1_rescale.h5'
+        self.model = None
+        self.num_channels = 0
+        
+
+        self.layer_dict = {}
+        self.specs_dict = {}
+
+        self.model_edit = QLineEdit()
+        self.model_edit.setText(self.model_address)
+        self.start_btn = QPushButton('Start')
+
+        self.mod_prep_btn = QPushButton('Prepare_Model')
+
+        self.laylist = QListWidget()
+
+        self.setLayout(QVBoxLayout())
+        qgrid = QGridLayout()
+        qgrid.addWidget(QLabel('Model file'),0,0)  
+        qgrid.addWidget(self.model_edit,0,1)
+        qgrid.addWidget(self.mod_prep_btn,1,0,1,2)
+        qgrid.addWidget(QLabel('Select layers'),2,0,1,2)
+        self.layout().addLayout(qgrid)
+        self.layout().addWidget(self.laylist)
+        self.prepare_selectors()  
+        self.layout().addWidget(self.start_btn)
+
+        self.mod_prep_btn.clicked.connect(self.prepare_model)
+        self.model_edit.textEdited.connect(self.update_model_address)
+        self.start_btn.clicked.connect(self.create_NN_Images)
+
+    def prepare_selectors(self):
+        self.laylist.clear()
+        self.layer_dict = {}
+        for i in range(self.num_channels):
+            item = QListWidgetItem()
+            new_laycho = Layerchoice(self, self.laylist.count() + 1)
+            new_laycho.update_layer()
+            item.setSizeHint(new_laycho.sizeHint())
+            self.laylist.addItem(item)
+            self.laylist.setItemWidget(item, new_laycho)
+
+
+    def update_model_address(self, event):
+        self.model_address = event
+
+    def create_NN_Images(self):
+        self.calculateNNforStack(model = self.model)
+    
+    def prepare_model(self):
+        self.model = keras.models.load_model(self.model_address)
+        self.num_channels = self.model.input_shape[-1]
+        self.prepare_selectors()
+
+    def calculateNNforStack(self, model=None, img_range=None):
+        """ calculate neural network output for all frames in a stack and write to new stack """
+        # dataOrder = 1  # 0 for drp/foci first, 1 for mito/structure first
+        if model is None:
+            from tensorflow import keras  # pylint: disable=C0415
+            modelPath = '//lebnas1.epfl.ch/microsc125/Watchdog/GUI/model_Dora.h5'
+            modelPath = '//lebnas1.epfl.ch/microsc125/Watchdog/Model/paramSweep5/f32_c07_b08.h5'
+            model = keras.models.load_model(modelPath, compile=True)
+        elif isinstance(model, str):
+            if os.path.isfile(model):
+                from tensorflow import keras  # pylint: disable=C0415
+                model = keras.models.load_model(model, compile=True)
+
+
+        # Prepare the Metadata for the new file by extracting the ome-metadata
+        
+        imgs = self.prepare_images()
+        mdInfoDict = {'NN Image' : True, 'Model' : self.model.name}
+
+
+        # Get each frame and calculate the nn-output for it
+        im_frame = {}
+        for id, im in imgs.items():
+            im_frame[id] = im[0,:,:]
+        inputData, positions = NNfeeder.prepareNNImages(im_frame,self.specs_dict, model)
+        if model.layers[0].input_shape[0][1] is None:
+            nnSize = inputData.shape[1]
+        else:
+            nnSize = positions['px'][-1][-1]
+
+        nnImage = np.zeros((int(imgs[1].shape[0]), nnSize, nnSize))
+        for frame in tqdm(range(imgs[1].shape[0])):
+            im_frame = {}
+            for id, im in imgs.items():
+                im_frame[id] = im[frame,:,:]
+            inputData, positions = NNfeeder.prepareNNImages(im_frame,self.specs_dict, model)
+            outputPredict = model.predict(inputData)
+            if model.layers[0].input_shape[0][1] is None:
+                nnImage[frame] = outputPredict[0, :, :, 0]
+            else:
+                nnImage[frame, :, :] = ImageTiles.stitchImage(outputPredict, positions)
+        
+        nnImage = align_images(nnImage, self._viewer.layers[self.layer_dict[1]].data.shape)
+
+        transformtuple = np.divide(self._viewer.layers[self.layer_dict[1]].data.shape, nnImage.shape)
+        nnImage = transform.rescale(nnImage, transformtuple)
+        
+        self._viewer.add_image(nnImage, name='NN Images', metadata=mdInfoDict, blending='additive',scale=self._viewer.layers[self.layer_dict[1]].scale)
+    
+    def prepare_images(self):
+        readict = {}
+        for id, lay in self.layer_dict.items():
+            dimz = len(self._viewer.layers[lay].data.shape)
+            if dimz == 5:
+                readict[id] = np.asarray(self._viewer.layers[lay].data)[:,0,0,:,:]
+            if dimz == 4:
+                readict[id] = np.asarray(self._viewer.layers[lay].data)[:,0,:,:]
+            if dimz == 3:
+                readict[id] = np.asarray(self._viewer.layers[lay].data)
+        return readict
+
+NN_GEN_LAYER_SPEC = ['Remove Background', 'Gaussian Filter', 'ISIM Rescale', 'Normalize 0-1', 'Normalize 0-255']
+
+class Layerchoice(QWidget):
+    def __init__(self, gener: Generator_Widget, layer_order: int):
+        super().__init__()
+        self._gener : Generator_Widget = gener
+        self._id = layer_order
+        self._gener.specs_dict[self._id] = {}
+        self.setLayout(QGridLayout())
+        self.layout().addWidget(QLabel('Layer ' + str(layer_order)),0,0)
+        self.chooser = QComboBox()
+        self.update_chooser()
+        self._gener._viewer.layers.events.inserted.connect(self.update_chooser)
+        self._gener._viewer.layers.events.removed.connect(self.update_chooser)
+        self.layout().addWidget(self.chooser,0,1)
+        self.chooser.currentTextChanged.connect(self.update_layer)
+        self.spec_btn = QToolButton()
+        self.spec_menu = QMenu()
+        self.spec_btn.setMenu(self.spec_menu)
+        self.spec_btn.setPopupMode(QToolButton.InstantPopup)
+        self.spec_btn.setText('Remove Background')
+        self.create_spec_menu()
+        self.layout().addWidget(self.spec_btn,1,0,1,2)
+
+        self.spec_menu.triggered.connect(self.update_specs)
+        
+
+    def create_spec_menu(self):
+        for sp in NN_GEN_LAYER_SPEC:
+            self._gener.specs_dict[self._id][sp] =  False
+            act = self.spec_menu.addAction(sp)
+            act.setCheckable(True)
+            act.setChecked(True)
+
+    def update_chooser(self):
+        self.chooser.clear()
+        for lay in self._gener._viewer.layers:
+            self.chooser.addItem(lay.name)
+
+    def update_layer(self):
+        self._gener.layer_dict[self._id] = self.chooser.currentText()
+
+    def update_specs(self):
+        for act in self.spec_menu.actions():
+            self._gener.specs_dict[self._id][act.text()] = act.isChecked()
+
+
+def align_images(to_align, goal_shape: tuple):
+    ssp = to_align.shape
+    dimis = len(goal_shape)
+    if dimis == 4:
+        return np.expand_dims(to_align,1)
+    elif dimis == 5:
+        tmp = np.expand_dims(to_align,1)
+        return np.expand_dims(to_align,1)
+    else:
+        return to_align

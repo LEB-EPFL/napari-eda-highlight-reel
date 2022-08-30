@@ -8,9 +8,14 @@ contributions:
     - id: napari-eda-highlight-reel.write_multiple
       title: write multiple images in ngff
       python_name: napari_eda_highlight_reel._writer:write_multiple
+    - id: napari-eda-highlight-reel.Generator_Widget
+      python_name: napari_eda_highlight_reel._widget:Generator_Widget
+      title: Make generator QWidget
   widgets:
     - command: napari-eda-highlight-reel.Extractor_Widget
       display_name: Extractor Widget
+    - command: napari-eda-highlight-reel.Generator_Widget
+      display_name: Generator Widget
   writers:
     - command: napari-eda-highlight-reel.write_multiple
       layer_types:
