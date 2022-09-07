@@ -66,7 +66,7 @@ class Extractor_Widget(QWidget):
         self.event_list = QListWidget()
 
         self.create_bottom_buttons()
-        
+
         self.layout().addLayout(self.choose_eda_line)
         self.layout().addLayout(self.neigh_row)
         self.layout().addLayout(self.thresh_grid)
@@ -126,14 +126,14 @@ class Extractor_Widget(QWidget):
         self.thresh_show = QLabel('-')
         self.thresh_grid.addWidget(self.thresh_show,0,1)
         self.thresh_grid.addWidget(self.thresh_scroller,1,0,1,2)
-    
+
     def create_top_buttons(self):
         self.scan_btn = QPushButton('Scan')
         self.add_btn = QPushButton('Add')
         self.top_btn_layout = QHBoxLayout()
         self.top_btn_layout.addWidget(self.scan_btn)
         self.top_btn_layout.addWidget(self.add_btn)
-    
+
     def create_bottom_buttons(self):
         self.save_all_btn = QPushButton('Save all')
         self.view_all_btn = QPushButton('View all')
@@ -193,7 +193,7 @@ class Extractor_Widget(QWidget):
         if self.eda_ready:
             self.set_max_thresh()
             self.update_threshold()
-            
+
         #except:
 
     def eliminate_widget_if_empty(self,event):
@@ -208,7 +208,7 @@ class Extractor_Widget(QWidget):
 
     def set_max_thresh(self):
             self.max_ev_score = np.amax(np.asarray(self.eda_layer.data))
-        
+
 
     def search_eda_layer(self):
         self.eda_ready = False
@@ -220,7 +220,7 @@ class Extractor_Widget(QWidget):
                     self.eda_layer_chooser.setCurrentText('NN Image')
                 except:
                     print('No layer named EDA in the selector')
-            
+
     # Slots related to buttons
 
     def create_new_event(self):
@@ -245,7 +245,7 @@ class Extractor_Widget(QWidget):
                 self.event_list.setItemWidget(item,cropper)
         if self._viewer.layers.__contains__('Event Labels'):
             self.update_event_labels()
-    
+
     def save_all_events(self):
         for i in range(self.event_list.count()):
             self.event_list.itemWidget(self.event_list.item(i)).save_reel()
@@ -279,9 +279,9 @@ class Extractor_Widget(QWidget):
 
     # For easy event visualization
 
-    
+
     def update_event_labels(self):
-        
+
         data = np.zeros(self.eda_layer.data.shape, dtype = np.int8)
         dims = len(data.shape)
         for i in range(self.event_list.count()):
@@ -294,7 +294,7 @@ class Extractor_Widget(QWidget):
             self._viewer.layers['Event Labels'].data = data
         else:
             self._viewer.add_labels(data = data, name='Event Labels')
-        
+
 
 
 
@@ -303,10 +303,10 @@ class Extractor_Widget(QWidget):
 
 def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list:
     """Function that takes a 3D frame and takes a list of the positions of the local maxima that are higher than the threshold
-    
+
     Parameters
     ----------
-    
+
     frame : numpy.ndarray
         The 3D image to be analyzed
     threshold : float
@@ -328,7 +328,7 @@ def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list:
     labeled, num_objects = ndi.label(maxima)
     slices = ndi.find_objects(labeled)
     Events_centers = []
-    
+
     for dz,dy,dx in slices:
         evvy = {'x': 0, 'y': 0, 'z': 0}
         evvy['x'] = (dx.start + dx.stop - 1)/2
@@ -354,7 +354,7 @@ class EDA_Event():
 
 class Cropper_Widget(QWidget):
     """Widget that make it possible to crop and then view separately or save an event
-    
+
     Parameters
     ----------
 
@@ -381,8 +381,8 @@ class Cropper_Widget(QWidget):
         self.btn_layout.addWidget(self.view_btn)
         self.btn_layout.addWidget(self.save_btn)
         self.create_val_grid()
-        
-                
+
+
         self.setLayout(QVBoxLayout())
         self.layout().addLayout(self.top_lane)
         self.layout().addLayout(self.val_grid)
@@ -473,7 +473,7 @@ class Cropper_Widget(QWidget):
             if self._extractor.event_list.itemWidget(self._extractor.event_list.item(i))._event.name == self._event.name:
                 indi = i
         return indi
-        
+
     # Slots non related to buttons
 
     def update_layermenu(self):
@@ -577,7 +577,7 @@ class Cropper_Widget(QWidget):
             to_append = new_data, old_tuple[1], old_tuple[2]
             finalist.append(to_append)
         return finalist
-    
+
     # Auxiliaries to the main crop function
 
     def convert_to_easy_format(self, layer_names):
@@ -653,13 +653,13 @@ class Cropper_Widget(QWidget):
         for i in range(len(new_lay)):
             new_view.add_image(new_lay[i][0],**new_lay[i][1])
 
-    
 
-    
 
-    
 
-    
+
+
+
+
 ############################ Auxiliary functions for Cropper Widget ##########################
 
 
@@ -766,7 +766,7 @@ class Generator_Widget(QWidget):
         self.model_address: str = '/home/elio/Desktop/LEB_Internship/napari-eda-highreel-1/models/model1_rescale.h5'
         self.model = None
         self.num_channels = 0
-        
+
 
         self.layer_dict = {}
         self.specs_dict = {}
@@ -781,13 +781,13 @@ class Generator_Widget(QWidget):
 
         self.setLayout(QVBoxLayout())
         qgrid = QGridLayout()
-        qgrid.addWidget(QLabel('Model file'),0,0)  
+        qgrid.addWidget(QLabel('Model file'),0,0)
         qgrid.addWidget(self.model_edit,0,1)
         qgrid.addWidget(self.mod_prep_btn,1,0,1,2)
         qgrid.addWidget(QLabel('Select layers'),2,0,1,2)
         self.layout().addLayout(qgrid)
         self.layout().addWidget(self.laylist)
-        self.prepare_selectors()  
+        self.prepare_selectors()
         self.layout().addWidget(self.start_btn)
 
         self.mod_prep_btn.clicked.connect(self.prepare_model)
@@ -811,7 +811,7 @@ class Generator_Widget(QWidget):
 
     def create_NN_Images(self):
         self.calculateNNforStack(model = self.model)
-    
+
     def prepare_model(self):
         self.model = keras.models.load_model(self.model_address)
         self.num_channels = self.model.input_shape[-1]
@@ -832,7 +832,7 @@ class Generator_Widget(QWidget):
 
 
         # Prepare the Metadata for the new file by extracting the ome-metadata
-        
+
         imgs = self.prepare_images()
         mdInfoDict = {'NN Image' : True, 'Model' : self.model.name}
 
@@ -858,14 +858,14 @@ class Generator_Widget(QWidget):
                 nnImage[frame] = outputPredict[0, :, :, 0]
             else:
                 nnImage[frame, :, :] = ImageTiles.stitchImage(outputPredict, positions)
-        
+
         nnImage = align_images(nnImage, self._viewer.layers[self.layer_dict[1]].data.shape)
 
         transformtuple = np.divide(self._viewer.layers[self.layer_dict[1]].data.shape, nnImage.shape)
         nnImage = transform.rescale(nnImage, transformtuple)
-        
+
         self._viewer.add_image(nnImage, name='NN Images', metadata=mdInfoDict, blending='additive',scale=self._viewer.layers[self.layer_dict[1]].scale)
-    
+
     def prepare_images(self):
         readict = {}
         for id, lay in self.layer_dict.items():
@@ -878,7 +878,7 @@ class Generator_Widget(QWidget):
                 readict[id] = np.asarray(self._viewer.layers[lay].data)
         return readict
 
-NN_GEN_LAYER_SPEC = ['Remove Background', 'Gaussian Filter', 'ISIM Rescale', 'Normalize 0-1', 'Normalize 0-255']
+NN_GEN_LAYER_SPEC = ['Remove Background', 'Gaussian Filter', 'ISIM Rescale', 'Zeiss Rescale' 'Normalize 0-1', 'Normalize 0-255']
 
 class Layerchoice(QWidget):
     def __init__(self, gener: Generator_Widget, layer_order: int):
@@ -903,7 +903,7 @@ class Layerchoice(QWidget):
         self.layout().addWidget(self.spec_btn,1,0,1,2)
 
         self.spec_menu.triggered.connect(self.update_specs)
-        
+
 
     def create_spec_menu(self):
         for sp in NN_GEN_LAYER_SPEC:
