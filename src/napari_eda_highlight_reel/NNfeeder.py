@@ -34,6 +34,14 @@ def prepareNNImages(imgs: dict, specs: dict, model, bacteria=False):
 
     # Preprocess the images
     if nnImageSize is None or imgs[1].shape[1] > nnImageSize:
+
+        # Tiling, if necessary
+        if nnImageSize is not None:
+            positions = getTilePositionsV2(imgs[1], nnImageSize)
+            contrastMax = 255
+        else:
+            contrastMax = 1
+
         # Adjust to 81nm/px
         for id in imgs.keys():
             if specs[id]['ISIM Rescale']:
@@ -43,21 +51,20 @@ def prepareNNImages(imgs: dict, specs: dict, model, bacteria=False):
             # This leaves an image that is smaller then initially
 
             # gaussian and background subtraction
-            if specs[id]['Remove Background']:
+            if specs[id]['Remove Background'] and id > 1:
+                #TODO: Check that this is for the right channel in dual channel mode
                 imgs[id] = imgs[id] - filters.gaussian(imgs[id], sig*5, preserve_range=True)
-        
-
-        # Tiling
-        if nnImageSize is not None:
-            positions = getTilePositionsV2(imgs[1], nnImageSize)
-            contrastMax = 255
-        else:
-            contrastMax = 1
+            elif specs[id]['Remove Background']:
+                imgs[id] = exposure.rescale_intensity(imgs[id],
+                                                      (np.mean(imgs[id]), np.max(imgs[id])),
+                                                       out_range=(0, contrastMax))
 
         # Contrast
         for id in imgs.keys():
-            if specs[id]['Normalize 0-1'] or specs[id]['Normalize 0-255']:
-                imgs[id] = exposure.rescale_intensity(imgs[id], (np.amin(imgs[id]), np.amax(imgs[id])), out_range=(0, contrastMax))
+            if specs[id]['Normalize 0-1']:
+                imgs[id] = exposure.rescale_intensity(imgs[id], (np.amin(imgs[id]), np.amax(imgs[id])), out_range=(0, 1))
+            elif specs[id]['Normalize 0-255']:
+                imgs[id] = exposure.rescale_intensity(imgs[id], (np.amin(imgs[id]), np.amax(imgs[id])), out_range=(0, 255))
 
     else:
         positions = {'px': [(0, 0, imgs[1].shape[1], imgs[1].shape[1])],
