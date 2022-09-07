@@ -878,7 +878,7 @@ class Generator_Widget(QWidget):
                 readict[id] = np.asarray(self._viewer.layers[lay].data)
         return readict
 
-NN_GEN_LAYER_SPEC = ['Remove Background', 'Gaussian Filter', 'ISIM Rescale', 'Zeiss Rescale' 'Normalize 0-1', 'Normalize 0-255']
+NN_GEN_LAYER_SPEC = ['Remove Background', 'Gaussian Filter', 'ISIM Rescale', 'Zeiss Rescale', 'Normalize 0-1', 'Normalize 0-255']
 
 class Layerchoice(QWidget):
     def __init__(self, gener: Generator_Widget, layer_order: int):
