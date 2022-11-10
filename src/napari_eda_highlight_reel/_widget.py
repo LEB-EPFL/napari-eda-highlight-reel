@@ -848,11 +848,14 @@ class Generator_Widget(QWidget):
             nnSize = positions['px'][-1][-1]
 
         nnImage = np.zeros((int(imgs[1].shape[0]), nnSize, nnSize))
+        prep_images = np.zeros((int(imgs[1].shape[0]), len(imgs.keys()), nnSize, nnSize))
         for frame in tqdm(range(imgs[1].shape[0])):
             im_frame = {}
             for id, im in imgs.items():
                 im_frame[id] = im[frame,:,:]
             inputData, positions = NNfeeder.prepareNNImages(im_frame,self.specs_dict, model)
+            for id in imgs.keys():
+                prep_images[frame, id - 1, :, :] = inputData[0,: ,: ,id - 1, 0]
             outputPredict = model.predict(inputData)
             if model.layers[0].input_shape[0][1] is None:
                 nnImage[frame] = outputPredict[0, :, :, 0]
@@ -864,7 +867,14 @@ class Generator_Widget(QWidget):
         transformtuple = np.divide(self._viewer.layers[self.layer_dict[1]].data.shape, nnImage.shape)
         nnImage = transform.rescale(nnImage, transformtuple)
 
-        self._viewer.add_image(nnImage, name='NN Images', metadata=mdInfoDict, blending='additive',scale=self._viewer.layers[self.layer_dict[1]].scale)
+        for id in imgs.keys():
+            orig_layer = self._viewer.layers[self.layer_dict[id]]
+            self._viewer.add_image(prep_images[:, id -1, :, :], name='Prep', metadata=mdInfoDict,
+                                   colormap=orig_layer.colormap,
+                                   scale=self._viewer.layers[self.layer_dict[1]].scale)
+        self._viewer.add_image(nnImage, name='NN Images', metadata=mdInfoDict, blending='additive',
+                               scale=self._viewer.layers[self.layer_dict[1]].scale)
+
 
     def prepare_images(self):
         readict = {}
@@ -878,7 +888,8 @@ class Generator_Widget(QWidget):
                 readict[id] = np.asarray(self._viewer.layers[lay].data)
         return readict
 
-NN_GEN_LAYER_SPEC = ['Remove Background', 'Gaussian Filter', 'ISIM Rescale', 'Zeiss Rescale', 'Normalize 0-1', 'Normalize 0-255']
+NN_GEN_LAYER_SPEC = ['Remove Background', 'Gaussian Filter', 'ISIM Rescale', 'Zeiss Rescale',
+                     'Normalize 0-1', 'Normalize 0-255', 'Show Result']
 
 class Layerchoice(QWidget):
     def __init__(self, gener: Generator_Widget, layer_order: int):
