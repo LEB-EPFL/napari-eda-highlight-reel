@@ -47,7 +47,7 @@ def cropper_first_event_image(make_napari_viewer):
 ############ Test Extractor Widget ################
 
 def test_Extractor_labels(extractor_empty: Extractor_Widget):
-    assert extractor_empty.layout().itemAt(0).layout().itemAt(0).widget().text() == 'NN image layer'
+    assert extractor_empty.layout().itemAt(0).layout().itemAt(0).widget().text().lower() == 'nn image layer'
     assert extractor_empty.layout().itemAt(1).layout().itemAt(0).widget().text() == 'Neighbourhood Size'
     assert extractor_empty.layout().itemAt(2).layout().itemAt(0).widget().text() == 'Threshold'
     assert extractor_empty.layout().itemAt(3).layout().itemAt(0).widget().text() == 'Scan'
@@ -88,7 +88,7 @@ def test_update_layer_label(extractor_after_load: Extractor_Widget):
     assert extractor_after_load._viewer.layers['Event Labels'].data[5,0,128,128] == 0
 
 
-    
+
 
 
 ############ Cropper Widget ################
