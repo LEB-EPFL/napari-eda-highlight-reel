@@ -1198,7 +1198,7 @@ class Editor_Widget(QWidget):
             print('Undo unavailable')
 
     def get_coordinates(self, data_coordinates):
-        data_coordinates = [data*scale for data, scale in zip(data_coordinates, self._viewer.layers[0].scale)]
+        data_coordinates = [data/scale for data, scale in zip(data_coordinates, self._viewer.layers[0].scale)]
         if self.on_off_score==1:
             frame_num = round(data_coordinates[0])
             print("DATA COORDS", data_coordinates)
