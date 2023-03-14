@@ -1120,8 +1120,9 @@ class Editor_Widget(QWidget):
                 except:
                     print('No compatible layer in the selector')
         if not self.eda_ready:
-            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images")
-            self.update_eda_layer_chooser()            
+            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images", blending="additive")
+            self.update_eda_layer_chooser()
+            self.update_eda_layer_from_chooser()            
     
     ##### SAVE #####
     def save_all_events(self):
@@ -1245,6 +1246,7 @@ class Editor_Widget(QWidget):
         self.size_slider.setValue(5)
         if self.eda_ready:
             self.update_size()
+        self.undo_arr = np.zeros(self._viewer.layers[self.eda_layer_chooser.currentText()])
 
 
     def eliminate_widget_if_empty(self,event):
