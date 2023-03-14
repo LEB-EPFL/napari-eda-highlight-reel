@@ -5,6 +5,9 @@ contributions:
     - id: napari-eda-highlight-reel.Extractor_Widget
       python_name: napari_eda_highlight_reel._widget:Extractor_Widget
       title: Make Extractor Widget
+    - id: napari-eda-highlight-reel.Editor_Widget
+      python_name: napari_eda_highlight_reel._widget:Editor_Widget
+      title: Make Editor Widget
     - id: napari-eda-highlight-reel.write_multiple
       title: write multiple images in ngff
       python_name: napari_eda_highlight_reel._writer:write_multiple
@@ -14,6 +17,8 @@ contributions:
   widgets:
     - command: napari-eda-highlight-reel.Extractor_Widget
       display_name: Extractor Widget
+    - command: napari-eda-highlight-reel.Editor_Widget
+      display_name: Editor Widget
     - command: napari-eda-highlight-reel.Generator_Widget
       display_name: Generator Widget
   writers:

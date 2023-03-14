@@ -8,7 +8,6 @@ Returns:
 from typing import Any
 import numpy as np
 from skimage import exposure, filters, transform
-
 from .ImageTiles import getTilePositionsV2
 
 
@@ -64,6 +63,8 @@ def prepareNNImages(imgs: dict, specs: dict, model, bacteria=False):
                 imgs[id] = exposure.rescale_intensity(imgs[id],
                                                       (np.mean(imgs[id]), np.max(imgs[id])),
                                                        out_range=(0, contrastMax))
+            if specs[id]['Remove Background Brightfield']:
+                imgs[id] = brighfield_background(imgs[id], 0.05)
 
         # Contrast
         for id in imgs.keys():
@@ -114,3 +115,14 @@ def prepareNNImages(imgs: dict, specs: dict, model, bacteria=False):
         inputData = np.stack(list(imgs.values()), 3)
 
     return inputData, positions
+
+
+    
+def brighfield_background(data_first, perc):
+    kk=1/(1-perc)
+    data_g = (data_first)/(np.max(data_first)) 
+    data_g = data_g - perc
+    data_g[data_g < 0] = 0
+    data_g= data_g*kk 
+
+    return data_g
