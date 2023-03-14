@@ -182,14 +182,14 @@ class Extractor_Widget(QWidget):
         try:
             connect_xml_metadata(self._viewer)
         except:
-            print("xml_metadata not availables")
+            print("xml_metadata not available")
         try:
             if not self.eda_ready:
                 connect_nn_images(self)
             self.update_eda_layer_chooser()
             self.search_eda_layer()
         except:
-            print("Neural_network images not availables")
+            print("Neural_network images not available")
         self.eda_layer_chooser.currentTextChanged.connect(self.update_eda_layer_from_chooser)
         self.thresh_scroller.valueChanged.connect(self.update_threshold)
         self.thresh_scroller.setValue(80)
@@ -1095,6 +1095,7 @@ class Editor_Widget(QWidget):
     ##### EDA LAYER: CHOOSING LAYER ---> EDA_LAYER UPDATES #####
     def update_eda_layer_from_chooser(self, text = None):
         if text is None:
+            self.search_eda_layer()
             text = self.eda_layer_chooser.currentText()
         if text != '':
             self.eda_layer = self._viewer.layers[text]
@@ -1119,7 +1120,8 @@ class Editor_Widget(QWidget):
                 except:
                     print('No compatible layer in the selector')
         if not self.eda_ready:
-            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images")            
+            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images")
+            self.update_eda_layer_chooser()            
     
     ##### SAVE #####
     def save_all_events(self):
