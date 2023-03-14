@@ -1118,6 +1118,8 @@ class Editor_Widget(QWidget):
                     self.eda_layer_chooser.setCurrentText('NN Images')
                 except:
                     print('No compatible layer in the selector')
+        if not self.eda_ready:
+            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images")            
     
     ##### SAVE #####
     def save_all_events(self):
