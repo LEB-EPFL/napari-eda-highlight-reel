@@ -1200,12 +1200,14 @@ class Editor_Widget(QWidget):
     def get_coordinates(self, data_coordinates):
         if self.on_off_score==1:
             frame_num = round(data_coordinates[0])
+            print("DATA COORDS", data_coordinates)
             ycoord = data_coordinates[1]
             xcoord = data_coordinates[2]
             self.undo_arr[self.undo_score]= self.eda_layer.data[frame_num]
             mu = (ycoord,xcoord)
             size = 50
             pixel_coords = [round(x) for x in data_coordinates]
+            print("PIXEL COORDS", pixel_coords)
             int_val = self.eda_layer.data[pixel_coords[0],pixel_coords[1],pixel_coords[2]]
             if  int_val < 0.1:
                 xmax=round(pixel_coords[2]+(size/2))
@@ -1247,7 +1249,7 @@ class Editor_Widget(QWidget):
         self.size_slider.setValue(5)
         if self.eda_ready:
             self.update_size()
-        self.undo_arr = np.zeros(self._viewer.layers[self.eda_layer_chooser.currentText()].data.shape)
+        self.undo_arr = np.zeros(10, self._viewer.layers[self.eda_layer_chooser.currentText()].data.shape[1:])
 
 
     def eliminate_widget_if_empty(self,event):
