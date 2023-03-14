@@ -1120,7 +1120,8 @@ class Editor_Widget(QWidget):
                 except:
                     print('No compatible layer in the selector')
         if not self.eda_ready:
-            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images", blending="additive")
+            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images", blending="additive", 
+                                   scale=self._viewer.layers[0].scale, colormap='red')
             self.update_eda_layer_chooser()
             self.update_eda_layer_from_chooser()            
     
