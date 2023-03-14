@@ -1246,7 +1246,7 @@ class Editor_Widget(QWidget):
         self.size_slider.setValue(5)
         if self.eda_ready:
             self.update_size()
-        self.undo_arr = np.zeros(self._viewer.layers[self.eda_layer_chooser.currentText()])
+        self.undo_arr = np.zeros(self._viewer.layers[self.eda_layer_chooser.currentText()].data.shape)
 
 
     def eliminate_widget_if_empty(self,event):
