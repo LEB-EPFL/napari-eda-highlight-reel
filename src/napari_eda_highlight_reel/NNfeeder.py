@@ -69,7 +69,10 @@ def prepareNNImages(imgs: dict, specs: dict, model, bacteria=False):
         # Contrast
         for id in imgs.keys():
             if specs[id]['Normalize 0-1']:
-                imgs[id] = exposure.rescale_intensity(imgs[id], (np.amin(imgs[id]), np.amax(imgs[id])), out_range=(0, 1))
+                # imgs[id] = exposure.rescale_intensity(imgs[id], (np.amin(imgs[id]), np.amax(imgs[id])), out_range=(0, 1))
+                imgs[id] = imgs[id].astype(np.float16)
+                imgs[id] = imgs[id] - np.min(imgs[id])
+                imgs[id] *= 1/np.max(imgs[id])
             elif specs[id]['Normalize 0-255']:
                 imgs[id] = exposure.rescale_intensity(imgs[id], (np.amin(imgs[id]), np.amax(imgs[id])), out_range=(0, 255))
 
@@ -117,12 +120,12 @@ def prepareNNImages(imgs: dict, specs: dict, model, bacteria=False):
     return inputData, positions
 
 
-    
+
 def brighfield_background(data_first, perc):
     kk=1/(1-perc)
-    data_g = (data_first)/(np.max(data_first)) 
+    data_g = (data_first)/(np.max(data_first))
     data_g = data_g - perc
     data_g[data_g < 0] = 0
-    data_g= data_g*kk 
+    data_g= data_g*kk
 
     return data_g

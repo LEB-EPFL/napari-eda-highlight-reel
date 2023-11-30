@@ -10,7 +10,7 @@ Replace code below according to your needs.
 from typing import TYPE_CHECKING
 
 import numpy as np
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QMessageBox, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton, QCheckBox
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QDialog,QMessageBox, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton, QCheckBox
 from qtpy.QtCore import Qt, QTimer
 
 from pathlib import Path
@@ -182,14 +182,14 @@ class Extractor_Widget(QWidget):
         try:
             connect_xml_metadata(self._viewer)
         except:
-            print("xml_metadata not available")
+            print("xml_metadata not availables")
         try:
             if not self.eda_ready:
                 connect_nn_images(self)
             self.update_eda_layer_chooser()
             self.search_eda_layer()
         except:
-            print("Neural_network images not available")
+            print("Neural_network images not availables")
         self.eda_layer_chooser.currentTextChanged.connect(self.update_eda_layer_from_chooser)
         self.thresh_scroller.valueChanged.connect(self.update_threshold)
         self.thresh_scroller.setValue(80)
@@ -268,7 +268,11 @@ class Extractor_Widget(QWidget):
             while actualist:
                 new_event = True
                 for ev in open_events:
-                    if abs(ev.c_p['x'] - actualist[0]['x'])<self.nbh_size and abs(ev.c_p['y'] - actualist[0]['y'])<self.nbh_size and abs(ev.c_p['z'] - actualist[0]['z'])<self.nbh_size and ev.last_frame == i-1:
+                    if all([abs(ev.c_p['x'] - actualist[0]['x'])<self.nbh_size,
+                        abs(ev.c_p['y'] - actualist[0]['y'])<self.nbh_size,
+                        abs(ev.c_p['z'] - actualist[0]['z'])<self.nbh_size,
+                        ev.last_frame == i-1]):
+                    # if abs(ev.c_p['x'] - actualist[0]['x'])<self.nbh_size and abs(ev.c_p['y'] - actualist[0]['y'])<self.nbh_size and abs(ev.c_p['z'] - actualist[0]['z'])<self.nbh_size and ev.last_frame == i-1:
                         ev.last_frame = i
                         new_event = False
                 if new_event:
@@ -322,6 +326,8 @@ def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list:
 
     list of dictionaries having at the entries 'x', 'y' and 'z' the x, y nd z coordinate of every event center
     """
+    if frame.max() == 0:
+        return []
     if len(frame.shape) == 2:                         #To treat 2D images as 3D
         frame = np.expand_dims(frame, axis = 0)
     data_max = ndi.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
@@ -647,8 +653,27 @@ class Cropper_Widget(QWidget):
         path = str(Path(self._extractor.image_path).parent / 'Reels' / self._event.name)
         if not os.path.isdir(str(Path(self._extractor.image_path).parent / 'Reels')):
             os.mkdir(str(Path(self._extractor.image_path).parent / 'Reels'))
-        write_multiple(path, data)
+        # write_multiple(path, data)
+
+        shp = data[0][0].shape
+        final = np.ndarray([shp[0],len(data),shp[1],shp[2],shp[3]])
+        if self.check_uniform_dimensions(data):
+            for i in range(len(data[0][0])):
+                for j in range(len(data)):
+                    final[i,j] = np.asarray(data[j][0][i])
+
+
+        tifffile.imwrite(f"{path}.ome.tiff", final, metadata={'axes': 'TCZYX'})
+        print(str(Path(self._extractor.image_path).parent / 'Reels'))
         print(self._event.name + 'has been saved')
+
+    def check_uniform_dimensions(self, dats) -> bool:
+        if len(dats) > 1:
+            shp = dats[0][0].shape
+            for dada in dats:
+                if dada[0].shape != shp:
+                    return False
+        return True
 
     def view_reel(self):
         new_lay = self.full_crop()
@@ -1007,7 +1032,7 @@ class Editor_Widget(QWidget):
         self._viewer.layers.events.inserted.connect(self.update_eda_layer_chooser)
         self._viewer.layers.events.removed.connect(self.update_eda_layer_chooser)
         #self._viewer.mouse_drag_callbacks.append(self.get_coordinates)
-        
+
         @self._viewer.mouse_drag_callbacks.append
         def get_event(viewer, event):
             print('mouse down')
@@ -1022,7 +1047,7 @@ class Editor_Widget(QWidget):
             else:
                 print('clicked!')
                 self.get_coordinates(event.position)
-        
+
     # Functions for the GUI creation
     def hideEvent(self, event):
         self._viewer: napari.Viewer = None
@@ -1079,7 +1104,7 @@ class Editor_Widget(QWidget):
         self.bottom_btn_layout = QHBoxLayout()
         self.bottom_btn_layout.addWidget(self.save_all_btn)
         self.save_all_btn.clicked.connect(self.save_all_events)
-    
+
     ##### BUTTON HAS ON-OFF STATES WITH DIFFERENT ON_OFF_SCORE #####
     def on_off(self):
         if self.on_off_score == 0:
@@ -1107,7 +1132,7 @@ class Editor_Widget(QWidget):
         self.eda_layer_chooser.clear()
         for lay in self._viewer.layers:
             self.eda_layer_chooser.addItem(lay.name)
-    
+
     ##### EDA LAYER: LOOK THROUGH AVAILABLE LAYERS AND CHECK IF A LAYER IS CALLED 'NN IMAGES' ---> EDA_LAYER BECOMES 'NN IMAGES' #####
     def search_eda_layer(self):
         self.eda_ready = False
@@ -1120,11 +1145,11 @@ class Editor_Widget(QWidget):
                 except:
                     print('No compatible layer in the selector')
         if not self.eda_ready:
-            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images", blending="additive", 
+            self._viewer.add_image(np.zeros(self._viewer.layers[0].data.shape), name="NN Images", blending="additive",
                                    scale=self._viewer.layers[0].scale, colormap='red')
             self.update_eda_layer_chooser()
-            self.update_eda_layer_from_chooser()            
-    
+            self.update_eda_layer_from_chooser()
+
     ##### SAVE #####
     def save_all_events(self):
         for lay in self._viewer.layers:
@@ -1133,7 +1158,7 @@ class Editor_Widget(QWidget):
             directory = r'C:\Users\roumba\Documents\Software\deep-events'
             savepath = directory + f'\{currname}'
             tifffile.imwrite(savepath, (data).astype(np.uint64), photometric='minisblack')
-        
+
 
     ##### UPDATE #####
     def update_event_labels(self):
@@ -1162,12 +1187,12 @@ class Editor_Widget(QWidget):
         coords = tf.reshape(tf.stack(tf.meshgrid(x,y),axis=-1),(-1,2)).numpy()
         gauss = mvn.prob(coords)
         return tf.reshape(gauss, size)
-    
+
     ##### ADD #####
     def add_gauss(self,sz):
         """ Function that adds Gaussian intensity from NN Images """
         sigma = self.size_slider.value()
-        gaussian_points = self.get_gaussian(sigma,sz)  
+        gaussian_points = self.get_gaussian(sigma,sz)
         gaussian_points = gaussian_points.numpy()                                                               #convers tensor into numpy array
         gaussian_points = gaussian_points/np.max(gaussian_points)                                               #divides by the max
         gaussian_points[gaussian_points < 0.1] = 0                                                              #sets background to zero
@@ -1177,8 +1202,8 @@ class Editor_Widget(QWidget):
     ##### REMOVE SQUARES #####
     def remove_int(self,mu,fr_num):
         """ Function that removes intensity from NN Images """
-        sigma = self.size_slider.value() 
-        # xmax=mu[1]+sigma  
+        sigma = self.size_slider.value()
+        # xmax=mu[1]+sigma
         # xmin=mu[1]-sigma
         # ymax=mu[0]+sigma
         # ymin=mu[0]-sigma
@@ -1186,8 +1211,8 @@ class Editor_Widget(QWidget):
         #self.eda_layer.data[fr_num, ymin:ymax, xmin:xmax] = 0
         new_data = self.eda_layer.data
         return new_data
-    
-        ##### UNDO BUTTON #####    
+
+        ##### UNDO BUTTON #####
     def undo(self):
         frame_num = int(getattr(self.eda_layer, 'position')[0])
         if self.undo_score != 0:
@@ -1222,7 +1247,7 @@ class Editor_Widget(QWidget):
                     for i in range(1,10):
                         self.undo_arr[i-1]=self.undo_arr[i]
                     self.undo_score=9
-            else: 
+            else:
                 print('Intensity Value is', int_val)
                 mu = [round(x) for x in mu]
                 self.eda_layer.data = self.remove_int(mu,frame_num)
@@ -1264,4 +1289,3 @@ class Editor_Widget(QWidget):
     def init_after_timer(self): ##wooow directly put in connect
         if len(self._viewer.layers) < 2:
             self.timer.start(self.Twait) #restarts the timer with a timeout of Twait ms
-
