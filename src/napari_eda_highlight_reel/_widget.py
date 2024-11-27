@@ -10,7 +10,7 @@ Replace code below according to your needs.
 from typing import TYPE_CHECKING
 
 import numpy as np
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QDialog,QMessageBox, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton, QCheckBox
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QDialog,QMessageBox, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton, QCheckBox, QFileDialog
 from qtpy.QtCore import Qt, QTimer
 
 from pathlib import Path
@@ -210,7 +210,8 @@ class Extractor_Widget(QWidget):
     #Auxiliaries for init_data
 
     def set_max_thresh(self):
-            self.max_ev_score = np.amax(np.asarray(self.eda_layer.data))
+        self.max_ev_score = 10000
+        self.thresh_scroller.setValue(9500)
 
 
     def search_eda_layer(self):
@@ -260,11 +261,13 @@ class Extractor_Widget(QWidget):
     # Auxiliaries to the button-related slots
 
     def basic_scan(self,layer):
+        import time
         open_events = []
-        framenumber = len(np.asarray(layer.data))
+        framenumber = layer.data.shape[0]
         ev_n = 1
         for i in range(framenumber):
-            actualist = find_cool_thing_in_frame(np.asarray(layer.data)[i],threshold = self.threshold, nbh_size = self.nbh_size)
+            t0 = time.perf_counter()
+            actualist = find_cool_thing_in_frame(layer.data[i],threshold = self.threshold, nbh_size = self.nbh_size)
             while actualist:
                 new_event = True
                 for ev in open_events:
@@ -279,7 +282,7 @@ class Extractor_Widget(QWidget):
                     open_events.append(EDA_Event('Event ' + str(len(open_events)),[actualist[0]['x'],actualist[0]['y'],actualist[0]['z']],i,ev_n))
                     ev_n += 1
                 actualist.pop(0)
-            print('frame number ' + str(i) + 'scanned')
+            print('frame number ' + str(i) + ' scanned in', time.perf_counter() - t0)
         for ev in open_events:
             ev.last_frame = ev.last_frame+1
         return open_events
@@ -330,11 +333,10 @@ def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list:
         return []
     if len(frame.shape) == 2:                         #To treat 2D images as 3D
         frame = np.expand_dims(frame, axis = 0)
-    data_max = ndi.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
-    maxima = (frame == data_max)
-    upper = (frame > threshold)
-    maxima[upper == 0] = 0
-    labeled, num_objects = ndi.label(maxima)
+    frame[frame < threshold] = 0
+    if frame.max() == 0:
+        return []
+    labeled, num_objects = ndi.label(frame)
     slices = ndi.find_objects(labeled)
     Events_centers = []
 
@@ -381,7 +383,7 @@ class Cropper_Widget(QWidget):
         self.layers_to_crop_names = self.get_image_layers_names()
 
         self.max_crop_sizes = {'x': self._extractor.eda_layer.data.shape[-1], 'y': self._extractor.eda_layer.data.shape[-2], 'z': self._extractor.eda_layer.data.shape[1] if len(self._extractor.eda_layer.data.shape) == 0 else 1}
-        self.crop_sizes = {'x': min(100,self.max_crop_sizes['x']), 'y': min(100,self.max_crop_sizes['y']), 'z': min(100,self.max_crop_sizes['z'])}
+        self.crop_sizes = {'x': min(256,self.max_crop_sizes['x']), 'y': min(256,self.max_crop_sizes['y']), 'z': min(100,self.max_crop_sizes['z'])}
 
         self.create_top_lane()
         self.view_btn = QPushButton('View')
@@ -542,8 +544,8 @@ class Cropper_Widget(QWidget):
     def update_last_frame_from_grid(self):
         if not self.grid_editables['Frame']['Last'].text().isnumeric():
             self.grid_editables['Frame']['Last'].setText('0')
-        self._event.first_frame = int(self.grid_editables['Frame']['Last'].text())
-        self.grid_editables['Frame']['Last'].setText(str(self._event.first_frame))
+        self._event.last_frame = int(self.grid_editables['Frame']['Last'].text())
+        self.grid_editables['Frame']['Last'].setText(str(self._event.last_frame))
 
 
     #Auxiliaries to slots
@@ -595,7 +597,7 @@ class Cropper_Widget(QWidget):
         """
         ready_video = dict()
         for name in layer_names:
-            video = np.asarray(self._extractor._viewer.layers[name].data)
+            video = self._extractor._viewer.layers[name].data
             if video.ndim == 3:
                 video = np.expand_dims(video, axis = 1)
             ready_video[name] = video
@@ -630,7 +632,7 @@ class Cropper_Widget(QWidget):
 
     def get_corrected_limits(self):
         limits = []
-        limits.append([self._event.first_frame,self._event.last_frame+1])
+        limits.append([self._event.first_frame, self._event.last_frame+1])
         frst = self._event.c_p['z'] - int(0.5*self.crop_sizes['z'])
         lst = self._event.c_p['z'] + int(0.5*self.crop_sizes['z'])
         limits.append([frst,lst])
@@ -640,7 +642,7 @@ class Cropper_Widget(QWidget):
         frst = self._event.c_p['x'] - int(0.5*self.crop_sizes['x'])
         lst = self._event.c_p['x'] + int(0.5*self.crop_sizes['x'])
         limits.append([frst,lst])
-        return correct_limits(limits, np.asarray(self._extractor.eda_layer.data))
+        return correct_limits(limits, self._extractor.eda_layer.data)
 
     def generate_event_metadata(self):
         mets = {'Neural Network': {'Model' : 'a', 'Parameters': {}, 'Event_Scores': []}, 'Origin': {'Name': 'a', 'Address': 'a'}, 'Cropping': {'Parameters': {'Event Score Threshold' : self._extractor.threshold, "Maximum's neighbourhood size": self._extractor.nbh_size}}}
@@ -650,9 +652,12 @@ class Cropper_Widget(QWidget):
 
     def save_reel(self):
         data = self.full_crop()
-        path = str(Path(self._extractor.image_path).parent / 'Reels' / self._event.name)
-        if not os.path.isdir(str(Path(self._extractor.image_path).parent / 'Reels')):
-            os.mkdir(str(Path(self._extractor.image_path).parent / 'Reels'))
+        if self._extractor.image_path is None:
+            options = QFileDialog.Options()
+            self._extractor.image_path = QFileDialog.getExistingDirectory(self, "Select Directory", "", options=options)
+        path = str(Path(self._extractor.image_path)/ self._event.name)
+        if not os.path.isdir(str(Path(self._extractor.image_path))):
+            os.mkdir(str(Path(self._extractor.image_path)))
         # write_multiple(path, data)
 
         shp = data[0][0].shape
@@ -664,7 +669,7 @@ class Cropper_Widget(QWidget):
 
 
         tifffile.imwrite(f"{path}.ome.tiff", final, metadata={'axes': 'TCZYX'})
-        print(str(Path(self._extractor.image_path).parent / 'Reels'))
+        print(str(Path(self._extractor.image_path)))
         print(self._event.name + 'has been saved')
 
     def check_uniform_dimensions(self, dats) -> bool:
@@ -679,13 +684,7 @@ class Cropper_Widget(QWidget):
         new_lay = self.full_crop()
         new_view = napari.Viewer()
         for i in range(len(new_lay)):
-            new_view.add_image(new_lay[i][0],**new_lay[i][1])
-
-
-
-
-
-
+            new_view.add_image(new_lay[i][0].squeeze(), **new_lay[i][1])
 
 
 ############################ Auxiliary functions for Cropper Widget ##########################
