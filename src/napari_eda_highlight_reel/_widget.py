@@ -232,6 +232,7 @@ class Extractor_Widget(QWidget):
     #Auxiliaries for init_data
 
     def set_max_thresh(self):
+<<<<<<< HEAD
         #TODO: Save the max in the metadata and use here
         self.thresh_scroller.setMaximum(10000)
         self.thresh_scroller.setSingleStep(100)
@@ -381,12 +382,19 @@ def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list:
         return []
     if len(frame.shape) == 2:                         #To treat 2D images as 3D
         frame = np.expand_dims(frame, axis = 0)
+<<<<<<< HEAD
     # data_max = ndi.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
     binary = frame.copy()
     binary[binary < threshold] = 0
     binary[binary > threshold] = 1
     # print("binary", time.perf_counter() - t0)
     labeled, num_objects = ndi.label(binary)
+=======
+    frame[frame < threshold] = 0
+    if frame.max() == 0:
+        return []
+    labeled, num_objects = ndi.label(frame)
+>>>>>>> 2433a5f190bd4ad00fd239c9bbd37c67d4c5c32f
     slices = ndi.find_objects(labeled)
     # print("labels", time.perf_counter() - t0)
     Events_centers = []
@@ -434,6 +442,7 @@ class Cropper_Widget(QWidget):
         self.layers_to_crop_names = self.get_image_layers_names()
 
         self.max_crop_sizes = {'x': self._extractor.eda_layer.data.shape[-1], 'y': self._extractor.eda_layer.data.shape[-2], 'z': self._extractor.eda_layer.data.shape[1] if len(self._extractor.eda_layer.data.shape) == 0 else 1}
+<<<<<<< HEAD
         self.crop_sizes = {'x': min(128,self.max_crop_sizes['x']), 'y': min(128,self.max_crop_sizes['y']), 'z': min(100,self.max_crop_sizes['z'])}
         self._event.box = self.bounding_box()
 
@@ -681,7 +690,7 @@ class Cropper_Widget(QWidget):
         """
         ready_video = dict()
         for name in layer_names:
-            video = np.asarray(self._extractor._viewer.layers[name].data)
+            video = self._extractor._viewer.layers[name].data
             if video.ndim == 3:
                 video = np.expand_dims(video, axis = 1)
             ready_video[name] = video
@@ -716,7 +725,7 @@ class Cropper_Widget(QWidget):
 
     def get_corrected_limits(self):
         limits = []
-        limits.append([self._event.first_frame,self._event.last_frame+1])
+        limits.append([self._event.first_frame, self._event.last_frame+1])
         frst = self._event.c_p['z'] - int(0.5*self.crop_sizes['z'])
         lst = self._event.c_p['z'] + int(0.5*self.crop_sizes['z'])
         limits.append([frst,lst])
@@ -726,7 +735,7 @@ class Cropper_Widget(QWidget):
         frst = self._event.c_p['x'] - int(0.5*self.crop_sizes['x'])
         lst = self._event.c_p['x'] + int(0.5*self.crop_sizes['x'])
         limits.append([frst,lst])
-        return correct_limits(limits, np.asarray(self._extractor.eda_layer.data))
+        return correct_limits(limits, self._extractor.eda_layer.data)
 
     def generate_event_metadata(self):
         mets = {'Neural Network': {'Model' : 'a', 'Parameters': {}, 'Event_Scores': []}, 'Origin': {'Name': 'a', 'Address': 'a'}, 'Cropping': {'Parameters': {'Event Score Threshold' : self._extractor.threshold, "Maximum's neighbourhood size": self._extractor.nbh_size}}}
