@@ -10,14 +10,9 @@ Replace code below according to your needs.
 from typing import TYPE_CHECKING
 
 import numpy as np
-<<<<<<< HEAD
 from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QDialog,QMessageBox, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton, QCheckBox, QProgressBar
 from qtpy.QtCore import Qt, QTimer, QThread, Signal
 
-=======
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QWidget, QScrollBar, QListWidget, QListWidgetItem, QDialog,QMessageBox, QLineEdit,QErrorMessage, QComboBox, QMenu, QToolButton, QCheckBox, QFileDialog
-from qtpy.QtCore import Qt, QTimer
->>>>>>> 2433a5f190bd4ad00fd239c9bbd37c67d4c5c32f
 
 from pathlib import Path
 import scipy.ndimage as ndi
@@ -196,9 +191,12 @@ class Extractor_Widget(QWidget):
 
     def init_data(self):
         """Initialize data from the layers"""
-        #try:
+
         if self.image_path != self._viewer.layers[0].source.path : #update data if new source is added
             self.image_path = self._viewer.layers[0].source.path
+        if self.image_path is None:
+            self.image_path = self._viewer.layers[0].metadata['path']
+ 
         path = Path(self.image_path)
         if (path.parents[0] / "db.yaml").is_file():
             self.folder_dict = benedict(Path(path).parents[0] / "db.yaml")
@@ -237,15 +235,9 @@ class Extractor_Widget(QWidget):
     #Auxiliaries for init_data
 
     def set_max_thresh(self):
-<<<<<<< HEAD
         #TODO: Save the max in the metadata and use here
         self.thresh_scroller.setMaximum(10000)
         self.thresh_scroller.setSingleStep(100)
-=======
-        self.max_ev_score = 10000
-        self.thresh_scroller.setValue(9500)
-
->>>>>>> 2433a5f190bd4ad00fd239c9bbd37c67d4c5c32f
 
     def search_eda_layer(self):
         self.eda_ready = False
@@ -299,41 +291,6 @@ class Extractor_Widget(QWidget):
         for i in range(self.event_list.count()):
             self.event_list.itemWidget(self.event_list.item(i)).view_reel()
 
-<<<<<<< HEAD
-=======
-    # Auxiliaries to the button-related slots
-
-    def basic_scan(self,layer):
-        import time
-        open_events = []
-        framenumber = layer.data.shape[0]
-        ev_n = 1
-        for i in range(framenumber):
-            t0 = time.perf_counter()
-            actualist = find_cool_thing_in_frame(layer.data[i],threshold = self.threshold, nbh_size = self.nbh_size)
-            while actualist:
-                new_event = True
-                for ev in open_events:
-                    if all([abs(ev.c_p['x'] - actualist[0]['x'])<self.nbh_size,
-                        abs(ev.c_p['y'] - actualist[0]['y'])<self.nbh_size,
-                        abs(ev.c_p['z'] - actualist[0]['z'])<self.nbh_size,
-                        ev.last_frame == i-1]):
-                    # if abs(ev.c_p['x'] - actualist[0]['x'])<self.nbh_size and abs(ev.c_p['y'] - actualist[0]['y'])<self.nbh_size and abs(ev.c_p['z'] - actualist[0]['z'])<self.nbh_size and ev.last_frame == i-1:
-                        ev.last_frame = i
-                        new_event = False
-                if new_event:
-                    open_events.append(EDA_Event('Event ' + str(len(open_events)),[actualist[0]['x'],actualist[0]['y'],actualist[0]['z']],i,ev_n))
-                    ev_n += 1
-                actualist.pop(0)
-            print('frame number ' + str(i) + ' scanned in', time.perf_counter() - t0)
-        for ev in open_events:
-            ev.last_frame = ev.last_frame+1
-        return open_events
-
-    # For easy event visualization
-
-
->>>>>>> 2433a5f190bd4ad00fd239c9bbd37c67d4c5c32f
     def update_event_labels(self):
 
         data = np.zeros(self.eda_layer.data.shape, dtype = np.int8)
@@ -392,7 +349,7 @@ class ScanWorker(QThread):
                     ev_n += 1
                 actualist.pop(0)
             # print(len(open_events))
-            # print('frame number ' + str(i) + ' scanned')
+            print('frame number ' + str(i) + ' scanned in', time.perf_counter() - t0)
             self.progress.emit(i)
         for ev in open_events:
             ev.last_frame = ev.last_frame+1
@@ -421,25 +378,18 @@ def find_cool_thing_in_frame(frame, threshold: float, nbh_size: int) -> list:
     list of dictionaries having at the entries 'x', 'y' and 'z' the x, y nd z coordinate of every event center
     """
     # t0 = time.perf_counter()
+    if len(frame.shape) == 2:                         #To treat 2D images as 3D
+        frame = np.expand_dims(frame, axis = 0)
+    # data_max = ndi.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
+    binary = frame.copy()
+    binary[binary < threshold] = 0
     if (max_data := frame.max()) == 0:
         return []
     elif max_data < threshold:
         return []
-    if len(frame.shape) == 2:                         #To treat 2D images as 3D
-        frame = np.expand_dims(frame, axis = 0)
-<<<<<<< HEAD
-    # data_max = ndi.maximum_filter(frame, nbh_size, mode = 'constant', cval = 0)
-    binary = frame.copy()
-    binary[binary < threshold] = 0
     binary[binary > threshold] = 1
     # print("binary", time.perf_counter() - t0)
     labeled, num_objects = ndi.label(binary)
-=======
-    frame[frame < threshold] = 0
-    if frame.max() == 0:
-        return []
-    labeled, num_objects = ndi.label(frame)
->>>>>>> 2433a5f190bd4ad00fd239c9bbd37c67d4c5c32f
     slices = ndi.find_objects(labeled)
     # print("labels", time.perf_counter() - t0)
     Events_centers = []
@@ -487,13 +437,9 @@ class Cropper_Widget(QWidget):
         self.layers_to_crop_names = self.get_image_layers_names()
 
         self.max_crop_sizes = {'x': self._extractor.eda_layer.data.shape[-1], 'y': self._extractor.eda_layer.data.shape[-2], 'z': self._extractor.eda_layer.data.shape[1] if len(self._extractor.eda_layer.data.shape) == 0 else 1}
-<<<<<<< HEAD
         self.crop_sizes = {'x': min(128,self.max_crop_sizes['x']), 'y': min(128,self.max_crop_sizes['y']), 'z': min(100,self.max_crop_sizes['z'])}
         self._event.box = self.bounding_box()
 
-=======
-        self.crop_sizes = {'x': min(256,self.max_crop_sizes['x']), 'y': min(256,self.max_crop_sizes['y']), 'z': min(100,self.max_crop_sizes['z'])}
->>>>>>> 2433a5f190bd4ad00fd239c9bbd37c67d4c5c32f
 
         self.create_top_lane()
         self.view_btn = QPushButton('View')
@@ -823,7 +769,6 @@ class Cropper_Widget(QWidget):
 
     def view_reel(self):
         new_view = napari.Viewer()
-<<<<<<< HEAD
         self.full_crop(new_view)
         _, widget = new_view.window.add_plugin_dock_widget('napari-event-annotate','Editor')
         widget.event = self._event
@@ -833,10 +778,6 @@ class Cropper_Widget(QWidget):
         new_view.show()
 
     # def construct_event_dict(self):
-=======
-        for i in range(len(new_lay)):
-            new_view.add_image(new_lay[i][0].squeeze(), **new_lay[i][1])
->>>>>>> 2433a5f190bd4ad00fd239c9bbd37c67d4c5c32f
 
 
 ############################ Auxiliary functions for Cropper Widget ##########################
